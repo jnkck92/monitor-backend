@@ -1,0 +1,14 @@
+services:
+  monitor-backend:
+    image: ghcr.io/jnkck92/monitor-backend:latest
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      DIVERA_ACCESSKEY: dein-api-key-hier
+      DIVERA_BASE_URL: https://app.divera247.com/api
+      DIVERA_POLL_INTERVAL_MS: 10000
+      INSTANCE_CONFIG_PATH: /app/config/instance-config.yaml
+    volumes:
+      - ./local-config/instance-config.yaml:/app/config/instance-config.yaml:ro
+    restart: unless-stopped

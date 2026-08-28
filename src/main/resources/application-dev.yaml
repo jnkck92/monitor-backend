@@ -1,0 +1,7 @@
+divera:
+  accesskey: dein-test-key-hier
+  base-url: ${DIVERA_BASE_URL}
+  poll-interval-ms: 10000
+
+configuration:
+  path: ${INSTANCE_CONFIG_PATH:./local-config/instance-config.yaml}
