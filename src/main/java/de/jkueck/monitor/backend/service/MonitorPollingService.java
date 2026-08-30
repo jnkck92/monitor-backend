@@ -10,12 +10,14 @@ import de.jkueck.monitor.backend.dto.response.RadioStatusWebResponse;
 import de.jkueck.monitor.backend.dto.response.UnitWebResponse;
 import de.jkueck.monitor.backend.dto.response.divera.VehicleStatus;
 import de.jkueck.monitor.backend.dto.response.divera.VehicleStatusGroupResponse;
+import de.jkueck.monitor.backend.event.MonitorStateChangedEvent;
 import jakarta.annotation.PostConstruct;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.ObjectMapper;
@@ -38,6 +40,8 @@ public class MonitorPollingService {
 
     private final ObjectMapper jsonObjectMapper;
 
+    private final ApplicationEventPublisher eventPublisher;
+
     @Getter
     private final AtomicReference<MonitorWebResponse> currentState = new AtomicReference<>(new MonitorWebResponse("DEFAULT", "STANDBY", List.of(), List.of(), null, null, null));
 
@@ -59,6 +63,13 @@ public class MonitorPollingService {
             logIfChanged(alarmResponse, statusResponse);
 
             MonitorWebResponse newState = buildState(alarmResponse, statusResponse.data(), configuration);
+            MonitorWebResponse oldState = currentState.getAndSet(newState);
+
+            if (hasChanged(oldState, newState)) {
+                log.info("State changed: {} → {}", oldState.mode(), newState.mode());
+                eventPublisher.publishEvent(new MonitorStateChangedEvent(this, newState));
+            }
+
             currentState.set(newState);
 
             log.debug("Poll ok – mode: {}, persons: {}, vehicles: {}", newState.mode(), newState.persons().size(), newState.vehicles().size());
@@ -67,6 +78,20 @@ public class MonitorPollingService {
             MonitorWebResponse old = currentState.get();
             currentState.set(new MonitorWebResponse(old.departmentName(), old.mode(), old.persons(), old.vehicles(), old.alarm(), old.lastUpdate(), e.getMessage()));
         }
+    }
+
+    private boolean hasChanged(MonitorWebResponse oldState, MonitorWebResponse newState) {
+        // Mode-Wechsel (STANDBY ↔ ALARM)
+        if (!oldState.mode().equals(newState.mode())) return true;
+
+        // Alarm-Inhalt geändert
+        if (newState.alarm() != null && oldState.alarm() != null
+                && !newState.alarm().equals(oldState.alarm())) return true;
+
+        // Vehicle-Status geändert
+        if (!oldState.vehicles().equals(newState.vehicles())) return true;
+
+        return false;
     }
 
     private void logIfChanged(DiveraResponse alarmResponse, VehicleStatusGroupResponse statusResponse) {
