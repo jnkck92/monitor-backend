@@ -14,8 +14,11 @@ import jakarta.annotation.PostConstruct;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import tools.jackson.databind.ObjectMapper;
 
 import java.time.Instant;
 import java.util.List;
@@ -27,12 +30,18 @@ import java.util.concurrent.atomic.AtomicReference;
 @RequiredArgsConstructor
 public class MonitorPollingService {
 
+    private static final Logger responseLogger = LoggerFactory.getLogger("divera.response");
+
     private final DiveraClient client;
 
     private final ConfigurationService configService;
 
+    private final ObjectMapper jsonObjectMapper;
+
     @Getter
     private final AtomicReference<MonitorWebResponse> currentState = new AtomicReference<>(new MonitorWebResponse("DEFAULT", "STANDBY", List.of(), List.of(), null, null, null));
+
+    private final AtomicReference<Long> lastLoggedAlarmId = new AtomicReference<>(null);
 
     @PostConstruct
     public void initialPoll() {
@@ -47,14 +56,37 @@ public class MonitorPollingService {
             DiveraResponse alarmResponse = client.pullAll();
             VehicleStatusGroupResponse statusResponse = client.pullVehicleStatus();
 
+            logIfChanged(alarmResponse, statusResponse);
+
             MonitorWebResponse newState = buildState(alarmResponse, statusResponse.data(), configuration);
             currentState.set(newState);
 
-            log.info("Poll ok – mode: {}, persons: {}, vehicles: {}", newState.mode(), newState.persons().size(), newState.vehicles().size());
+            log.debug("Poll ok – mode: {}, persons: {}, vehicles: {}", newState.mode(), newState.persons().size(), newState.vehicles().size());
         } catch (Exception e) {
             log.error("Error during poll: {}", e.getMessage(), e);
             MonitorWebResponse old = currentState.get();
             currentState.set(new MonitorWebResponse(old.departmentName(), old.mode(), old.persons(), old.vehicles(), old.alarm(), old.lastUpdate(), e.getMessage()));
+        }
+    }
+
+    private void logIfChanged(DiveraResponse alarmResponse, VehicleStatusGroupResponse statusResponse) {
+        Optional<AlarmResponse> activeAlarm = findActiveAlarm(alarmResponse);
+
+        Long currentAlarmId = activeAlarm.map(AlarmResponse::id).orElse(null);
+        Long previousAlarmId = lastLoggedAlarmId.get();
+
+        if (!java.util.Objects.equals(currentAlarmId, previousAlarmId)) {
+            lastLoggedAlarmId.set(currentAlarmId);
+
+            if (currentAlarmId != null) {
+                try {
+                    responseLogger.info("ALARM DETECTED [id={}]: alarms={}", currentAlarmId, jsonObjectMapper.writeValueAsString(alarmResponse));
+                } catch (Exception e) {
+                    log.error("Failed to serialize response for logging", e);
+                }
+            } else {
+                responseLogger.info("ALARM ENDED (previous id={})", previousAlarmId);
+            }
         }
     }
 
