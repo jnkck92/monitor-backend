@@ -1,13 +1,13 @@
 package de.jkueck.monitor.backend.service;
 
-import de.jkueck.monitor.backend.dto.response.divera.AlarmResponse;
 import de.jkueck.monitor.backend.client.DiveraClient;
-import de.jkueck.monitor.backend.dto.response.divera.DiveraResponse;
 import de.jkueck.monitor.backend.dto.configuration.*;
 import de.jkueck.monitor.backend.dto.response.AlarmWebResponse;
 import de.jkueck.monitor.backend.dto.response.MonitorWebResponse;
 import de.jkueck.monitor.backend.dto.response.RadioStatusWebResponse;
 import de.jkueck.monitor.backend.dto.response.UnitWebResponse;
+import de.jkueck.monitor.backend.dto.response.divera.AlarmResponse;
+import de.jkueck.monitor.backend.dto.response.divera.DiveraResponse;
 import de.jkueck.monitor.backend.dto.response.divera.VehicleStatus;
 import de.jkueck.monitor.backend.dto.response.divera.VehicleStatusGroupResponse;
 import de.jkueck.monitor.backend.event.MonitorStateChangedEvent;
@@ -134,19 +134,11 @@ public class MonitorPollingService {
 
         Rule rule = matchRule(activeAlarm.get(), ruleGroup);
 
-        List<UnitWebResponse> alarmedVehicles = allVehicleUnits.stream()
-                .map(v -> new UnitWebResponse(
-                        v.id(),
-                        v.name(),
-                        v.callSign(),
-                        rule.vehicleOrder().contains(v.id()),
-                        v.radioStatus()
-                ))
-                .toList();
+        List<UnitWebResponse> alarmedVehicles = buildOrderedVehicleList(allVehicleUnits, rule, configuration);
 
         AlarmWebResponse alarmInfo = new AlarmWebResponse(activeAlarm.get().title(), activeAlarm.get().address(), rule.label(), ruleGroup.color());
 
-        return new MonitorWebResponse(configuration.departmentName(),"ALARM", allPersonUnits, alarmedVehicles, alarmInfo, Instant.now(), null);
+        return new MonitorWebResponse(configuration.departmentName(), "ALARM", allPersonUnits, alarmedVehicles, alarmInfo, Instant.now(), null);
     }
 
     private Optional<AlarmResponse> findActiveAlarm(DiveraResponse response) {
@@ -172,7 +164,36 @@ public class MonitorPollingService {
                 .filter(rule -> rule.keywords().stream()
                         .anyMatch(kw -> alarm.title() != null && alarm.title().contains(kw)))
                 .findFirst()
-                .orElse(new Rule("Unbekannter Einsatz", List.of(), List.of()));
+                .orElse(new Rule("Unbekannter Einsatz", List.of(), List.of(), null));
+    }
+
+    private List<UnitWebResponse> buildOrderedVehicleList(List<UnitWebResponse> allVehicleUnits, Rule rule, Configuration configuration) {
+        List<UnitWebResponse> orderedAlerted = rule.vehicleOrder().stream()
+                .map(id -> allVehicleUnits.stream()
+                        .filter(v -> v.id().equals(id))
+                        .findFirst()
+                        .orElse(null))
+                .filter(java.util.Objects::nonNull)
+                .map(v -> new UnitWebResponse(v.id(), v.name(), v.callSign(), true, v.radioStatus()))
+                .toList();
+
+        List<String> nonAlertedOrder = (rule.remainingOrder() != null && !rule.remainingOrder().isEmpty())
+                ? rule.remainingOrder()
+                : configuration.defaultOrder();
+
+        List<UnitWebResponse> orderedNonAlerted = nonAlertedOrder.stream()
+                .filter(id -> !rule.vehicleOrder().contains(id))
+                .map(id -> allVehicleUnits.stream()
+                        .filter(v -> v.id().equals(id))
+                        .findFirst()
+                        .orElse(null))
+                .filter(java.util.Objects::nonNull)
+                .map(v -> new UnitWebResponse(v.id(), v.name(), v.callSign(), false, v.radioStatus()))
+                .toList();
+
+        List<UnitWebResponse> result = new java.util.ArrayList<>(orderedAlerted);
+        result.addAll(orderedNonAlerted);
+        return result;
     }
 
     private UnitWebResponse enrichWithStatus(Unit unit, List<VehicleStatus> liveStatuses, Configuration configuration) {

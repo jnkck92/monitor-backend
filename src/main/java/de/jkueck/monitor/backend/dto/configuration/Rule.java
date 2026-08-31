@@ -11,7 +11,9 @@ public record Rule(
 
         List<String> keywords,
 
-        List<String> vehicleOrder
+        List<String> vehicleOrder,
+
+        List<String> remainingOrder
 
 ) {
 }
