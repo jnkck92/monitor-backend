@@ -39,7 +39,7 @@ public class MockDiveraApiClient implements DiveraClient {
                 new DiveraResponse.Data(
                         Map.of("123", new AlarmResponse(
                                 123L,
-                                "F 01 - Heckenbrand",
+                                "F012 - Heckenbrand",
                                 "Brennt Hecke",
                                 "Teststraße 1, 12345 Testort",
                                 Instant.now().getEpochSecond(),
