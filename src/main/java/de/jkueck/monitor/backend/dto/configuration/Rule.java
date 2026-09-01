@@ -1,6 +1,7 @@
 package de.jkueck.monitor.backend.dto.configuration;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import de.jkueck.monitor.backend.service.MatchMode;
 
 import java.util.List;
 
@@ -13,7 +14,9 @@ public record Rule(
 
         List<String> vehicleOrder,
 
-        List<String> remainingOrder
+        List<String> remainingOrder,
+
+        MatchMode matchMode
 
 ) {
 }

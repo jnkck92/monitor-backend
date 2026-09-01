@@ -31,11 +31,11 @@ class KeywordMatcherTest {
     }
 
     private Rule rule(String label, List<String> keywords) {
-        return new Rule(label, keywords, List.of(), null);
+        return new Rule(label, keywords, List.of(), null, null);
     }
 
     private Rule rule(String label, List<String> keywords, MatchMode mode) {
-        return new Rule(label, keywords, List.of(), mode);
+        return new Rule(label, keywords, List.of(),null, mode);
     }
 
     private RuleGroup group(String category, String label, List<Rule> rules) {
@@ -562,7 +562,7 @@ class KeywordMatcherTest {
         @Test
         @DisplayName("null matchMode wird als CONTAINS behandelt")
         void shouldTreatNullModeAsContains() {
-            Rule ruleWithNull = new Rule("Nullmode", List.of("F01"), List.of(), null);
+            Rule ruleWithNull = new Rule("Nullmode", List.of("F01"), List.of(), null, null);
             RuleGroup rg = group("F", "Brand", List.of(ruleWithNull));
 
             Optional<Rule> result = matcher.matchRule(alarm("F01 Feuer"), rg);
