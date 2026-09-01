@@ -42,6 +42,8 @@ public class MonitorPollingService {
 
     private final ApplicationEventPublisher eventPublisher;
 
+    private final KeywordMatcher keywordMatcher;
+
     @Getter
     private final AtomicReference<MonitorWebResponse> currentState = new AtomicReference<>(new MonitorWebResponse("DEFAULT", "STANDBY", List.of(), List.of(), null, null, null));
 
@@ -130,9 +132,12 @@ public class MonitorPollingService {
             return new MonitorWebResponse(configuration.departmentName(), "STANDBY", allPersonUnits, allVehicleUnits, null, Instant.now(), null);
         }
 
-        RuleGroup ruleGroup = matchRuleGroup(activeAlarm.get(), configuration);
+        RuleGroup ruleGroup = keywordMatcher.matchRuleGroup(activeAlarm.get(), configuration)
+                .orElse(new RuleGroup("Unbekannter Einsatz", "Unbekannter Einsatz", "#999999", List.of()));
 
-        Rule rule = matchRule(activeAlarm.get(), ruleGroup);
+        Rule rule = keywordMatcher.matchRule(activeAlarm.get(), ruleGroup)
+                .orElse(new Rule("Unbekannter Einsatz", List.of(), List.of(), null));
+
 
         List<UnitWebResponse> alarmedVehicles = allVehicleUnits.stream()
                 .map(v -> new UnitWebResponse(
@@ -156,23 +161,6 @@ public class MonitorPollingService {
         return response.data().items().values().stream()
                 .filter(a -> a.closed() == null || !a.closed())
                 .findFirst();
-    }
-
-    private RuleGroup matchRuleGroup(AlarmResponse alarm, Configuration configuration) {
-        return configuration.ruleGroups().stream()
-                .filter(group -> group.rules().stream()
-                        .anyMatch(rule -> rule.keywords().stream()
-                                .anyMatch(kw -> alarm.title() != null && alarm.title().contains(kw))))
-                .findFirst()
-                .orElse(new RuleGroup("Unbekannter Einsatz", "Unbekannter Einsatz", "#999999", List.of()));
-    }
-
-    private Rule matchRule(AlarmResponse alarm, RuleGroup ruleGroup) {
-        return ruleGroup.rules().stream()
-                .filter(rule -> rule.keywords().stream()
-                        .anyMatch(kw -> alarm.title() != null && alarm.title().contains(kw)))
-                .findFirst()
-                .orElse(new Rule("Unbekannter Einsatz", List.of(), List.of()));
     }
 
     private UnitWebResponse enrichWithStatus(Unit unit, List<VehicleStatus> liveStatuses, Configuration configuration) {
