@@ -10,14 +10,12 @@ import de.jkueck.monitor.backend.dto.response.divera.AlarmResponse;
 import de.jkueck.monitor.backend.dto.response.divera.DiveraResponse;
 import de.jkueck.monitor.backend.dto.response.divera.VehicleStatus;
 import de.jkueck.monitor.backend.dto.response.divera.VehicleStatusGroupResponse;
-import de.jkueck.monitor.backend.event.MonitorStateChangedEvent;
 import jakarta.annotation.PostConstruct;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.ObjectMapper;
@@ -39,8 +37,6 @@ public class MonitorPollingService {
     private final ConfigurationService configService;
 
     private final ObjectMapper jsonObjectMapper;
-
-    private final ApplicationEventPublisher eventPublisher;
 
     @Getter
     private final AtomicReference<MonitorWebResponse> currentState = new AtomicReference<>(new MonitorWebResponse("DEFAULT", "STANDBY", List.of(), List.of(), null, null, null));
@@ -67,7 +63,6 @@ public class MonitorPollingService {
 
             if (hasChanged(oldState, newState)) {
                 log.info("State changed: {} → {}", oldState.mode(), newState.mode());
-                eventPublisher.publishEvent(new MonitorStateChangedEvent(this, newState));
             }
 
             currentState.set(newState);
