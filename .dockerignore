@@ -1,0 +1,15 @@
+.git
+.gitignore
+.idea
+*.iml
+logs/
+target/
+!target/monitor-backend-*.jar
+src/test/
+local-config/
+AGENTS.md
+HELP.md
+RELEASE.md
+README.md
+docker-compose.yaml
+.dockerignore

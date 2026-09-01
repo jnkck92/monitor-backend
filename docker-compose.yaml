@@ -12,3 +12,4 @@ services:
     volumes:
       - ./local-config/instance-config.yaml:/app/config/instance-config.yaml:ro
     restart: unless-stopped
+    stop_grace_period: 35s

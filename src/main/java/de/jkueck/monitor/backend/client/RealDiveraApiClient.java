@@ -4,8 +4,11 @@ import de.jkueck.monitor.backend.dto.response.divera.DiveraResponse;
 import de.jkueck.monitor.backend.config.DiveraProperties;
 import de.jkueck.monitor.backend.dto.response.divera.VehicleStatusGroupResponse;
 import org.springframework.context.annotation.Profile;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+
+import java.time.Duration;
 
 @Component
 @Profile("live")
@@ -16,7 +19,15 @@ public class RealDiveraApiClient implements DiveraClient {
 
     public RealDiveraApiClient(DiveraProperties properties) {
         this.properties = properties;
-        this.restClient = RestClient.builder().baseUrl(properties.baseUrl()).build();
+
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(Duration.ofSeconds(5));
+        requestFactory.setReadTimeout(Duration.ofSeconds(10));
+
+        this.restClient = RestClient.builder()
+                .baseUrl(properties.baseUrl())
+                .requestFactory(requestFactory)
+                .build();
     }
 
     @Override

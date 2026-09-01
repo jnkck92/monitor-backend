@@ -27,7 +27,7 @@ jobs:
           cache: 'maven'
 
       - name: Build and Test
-        run: ./mvnw -B verify -DskipTests
+        run: ./mvnw -B verify
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3

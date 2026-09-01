@@ -12,9 +12,15 @@ A Spring Boot backend service that powers a fire department operations monitor. 
 
 ## Key Features
 
-- **Real-time Alarm Polling** – Periodically fetches alarm data from the Divera 24/7 API
-- **Dynamic Vehicle Ordering** – Automatically determines vehicle dispatch order based on configurable alarm rules
-- **Hot-reloadable Configuration** – Instance configuration (vehicles, persons, rules) can be reloaded at runtime without restart
+- **Real-time Alarm Polling** – Periodically fetches alarm and vehicle status data from the Divera 24/7 API
+- **Intelligent Keyword Matching** – Configurable alarm rules with multiple match modes (CONTAINS, EXACT, STARTS_WITH, REGEX) and longest-match priority
+- **Dynamic Vehicle Ordering** – Automatically determines vehicle dispatch order based on alarm type
+- **Hot-reloadable Configuration** – Instance configuration can be reloaded at runtime without restart
+- **Health Monitoring** – Spring Actuator health endpoint with custom Divera connection indicator
+- **Metrics** – Micrometer metrics for poll duration, error rates and state changes
+- **Startup Validation** – Validates Divera API connection on startup (live profile)
+- **Graceful Shutdown** – Clean shutdown with configurable timeout
+- **OpenAPI / Swagger** – Interactive API documentation
 - **Multi-Platform Docker Images** – Built for `linux/amd64` and `linux/arm64` (Raspberry Pi compatible)
 - **Dev Mode with Mock Alarms** – Simulated alarm triggers for local development and testing
 
@@ -26,9 +32,13 @@ A Spring Boot backend service that powers a fire department operations monitor. 
 |---|---|---|
 | Java | 21 | Runtime |
 | Spring Boot | 4.1.1 | Application framework |
+| Spring Actuator | – | Health checks & metrics |
+| Micrometer | – | Application metrics |
+| springdoc-openapi | 2.8.8 | Swagger UI & OpenAPI docs |
 | Maven | 3.9+ | Build tool |
 | Lombok | – | Boilerplate reduction |
 | Jackson YAML | – | Configuration parsing |
+| WireMock | 3.13.0 | API client integration tests |
 | Docker | – | Containerization |
 | GitHub Actions | – | CI/CD |
 
@@ -38,25 +48,52 @@ A Spring Boot backend service that powers a fire department operations monitor. 
 
 ```
 src/main/java/de/jkueck/monitor/backend/
-├── MonitorBackendApplication.java      # Entry point with scheduling enabled
-├── client/                             # Divera API client abstraction
-│   ├── DiveraClient.java              # Interface
-│   ├── RealDiveraApiClient.java       # Production implementation
-│   └── MockDiveraApiClient.java       # Dev/test mock
-├── config/                             # Spring configuration & properties
-│   ├── ConfigurationProperties.java
-│   ├── DiveraProperties.java
-│   └── ObjectMapperConfig.java
-├── controller/                         # REST API endpoints
-│   ├── ConfigurationController.java
-│   ├── MonitorController.java
-│   └── MockController.java            # Dev profile only
-├── dto/                                # Data transfer objects
-│   ├── configuration/
-│   └── response/
-└── service/                            # Business logic
-    ├── ConfigurationService.java
-    └── MonitorPollingService.java
+├── MonitorBackendApplication.java        # Entry point with scheduling enabled
+├── client/                               # Divera API client abstraction
+│   ├── DiveraClient.java                 # Interface
+│   ├── RealDiveraApiClient.java          # Production impl (live profile, with timeouts)
+│   └── MockDiveraApiClient.java          # Dev/test mock (dev profile)
+├── config/                               # Spring configuration & properties
+│   ├── ClockConfig.java                  # Clock bean for testability
+│   ├── ConfigurationProperties.java      # Instance config file path
+│   ├── DiveraConnectionValidator.java    # Startup API key validation (live profile)
+│   ├── DiveraHealthIndicator.java        # Custom health check for /actuator/health
+│   ├── DiveraProperties.java             # Divera API settings
+│   ├── ObjectMapperConfig.java           # JSON & YAML ObjectMapper beans
+│   └── OpenApiConfig.java               # Swagger/OpenAPI metadata
+├── controller/                           # REST API endpoints
+│   ├── ConfigurationController.java      # Config read & reload
+│   ├── GlobalExceptionHandler.java       # RFC 9457 ProblemDetail error responses
+│   ├── MockController.java              # Dev profile only – simulate alarms
+│   └── MonitorController.java           # Main status endpoint
+├── dto/                                  # Data transfer objects
+│   ├── configuration/                    # Instance config model
+│   │   ├── Configuration.java
+│   │   ├── Rule.java
+│   │   ├── RuleGroup.java
+│   │   ├── Status.java
+│   │   └── Unit.java
+│   └── response/                         # API response model
+│       ├── AlarmWebResponse.java
+│       ├── MonitorWebResponse.java
+│       ├── RadioStatusWebResponse.java
+│       ├── UnitWebResponse.java
+│       └── divera/                       # Divera API response model
+│           ├── AlarmResponse.java
+│           ├── DiveraResponse.java
+│           ├── VehicleStatus.java
+│           └── VehicleStatusGroupResponse.java
+└── service/                              # Business logic
+    ├── ActiveAlarmResolver.java          # Finds active (non-closed) alarm
+    ├── ConfigurationService.java         # Loads & caches instance config from YAML
+    ├── DiveraResponseLogger.java         # Logs alarm transitions to file
+    ├── KeywordMatcher.java               # Alarm keyword matching with multiple modes
+    ├── MatchMode.java                    # Enum: CONTAINS, EXACT, STARTS_WITH, REGEX
+    ├── MonitorMode.java                  # Enum: STANDBY, ALARM
+    ├── MonitorPollingService.java         # Orchestrates polling cycle with metrics
+    ├── MonitorStateBuilder.java          # Builds MonitorWebResponse from raw data
+    ├── UnitStatusEnricher.java           # Maps live FMS status to display DTOs
+    └── VehicleOrderBuilder.java          # Orders vehicles by alarm rules
 ```
 
 ---
@@ -106,15 +143,18 @@ docker run -p 8080:8080 \
 
 ## Configuration
 
-### `application.yaml` (Production defaults)
+### Application Configuration
 
 ```yaml
 spring:
   application:
     name: monitor-backend
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
 
 server:
   port: 8080
+  shutdown: graceful
 
 divera:
   access-key: ${DIVERA_ACCESSKEY}
@@ -129,6 +169,7 @@ configuration:
 
 | Variable | Required | Description |
 |---|---|---|
+| `SPRING_PROFILES_ACTIVE` | ✅ | Active profile (`dev` or `live`) |
 | `DIVERA_ACCESSKEY` | ✅ | Divera 24/7 API access key |
 | `DIVERA_BASE_URL` | ✅ | Divera API base URL |
 | `DIVERA_POLL_INTERVAL_MS` | ❌ | Polling interval in ms (default: `10000`) |
@@ -136,15 +177,24 @@ configuration:
 
 ### Instance Configuration
 
-The `instance-config.yaml` defines department-specific data:
+The `instance-config.yaml` defines all department-specific settings:
 
-- Department name
-- Persons (leadership roles with Divera IDs)
-- Vehicles (with RIC codes and Divera IDs)
-- Status definitions and colors
-- Alarm rule groups with keyword matching and vehicle dispatch order
+| Section | Description |
+|---|---|
+| `departmentName` | Display name of the fire department |
+| `commandContact` | Contact info for command (e.g. ELW call sign) |
+| `persons` | Leadership personnel with Divera IDs and RIC codes |
+| `vehicles` | Vehicles/units with Divera IDs and RIC codes |
+| `defaultOrder` | Default vehicle display order (list of vehicle IDs) |
+| `statuses` | FMS status definitions with labels and colors (keys: `"1"` – `"6"`) |
+| `ruleGroups` | Alarm categories (e.g. Brand, Hilfeleistung, CBRN, Unterstützung) |
+| `ruleGroups[].rules` | Individual alarm rules with keyword matching and vehicle dispatch order |
+| `rules[].matchMode` | Matching strategy: `CONTAINS` (default), `EXACT`, `STARTS_WITH`, `REGEX` |
+| `rules[].hint` | Optional tactical hint displayed during alarm |
+| `rules[].remainingOrder` | Optional custom order for non-alerted vehicles |
 
-See [`local-config/instance-config.yaml`](local-config/instance-config.yaml) for a full example.
+📄 **Full schema documentation:** [`docs/instance-config-schema.md`](docs/instance-config-schema.md)
+📝 **Example configuration:** [`local-config/instance-config.yaml`](local-config/instance-config.yaml)
 
 ---
 
@@ -164,6 +214,29 @@ See [`local-config/instance-config.yaml`](local-config/instance-config.yaml) for
 |---|---|---|
 | `POST` | `/mock/alarm/on` | Simulates an active alarm |
 | `POST` | `/mock/alarm/off` | Switches back to standby |
+
+### Monitoring Endpoints
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/actuator/health` | Health status with Divera connection indicator |
+| `GET` | `/actuator/info` | Application info |
+| `GET` | `/actuator/metrics` | Available metrics |
+
+### Documentation
+
+| Endpoint | Description |
+|---|---|
+| `/swagger-ui.html` | Interactive Swagger UI |
+| `/api-docs` | OpenAPI 3.0 JSON specification |
+
+### Custom Metrics
+
+| Metric | Description |
+|---|---|
+| `monitor.poll.duration` | Duration of each Divera poll cycle |
+| `monitor.poll.errors` | Number of failed poll attempts |
+| `monitor.state.changes` | Number of state transitions (STANDBY ↔ ALARM) |
 
 ### Example Request
 
@@ -196,13 +269,15 @@ services:
     ports:
       - "8085:8080"
     environment:
+      SPRING_PROFILES_ACTIVE: live
       DIVERA_ACCESSKEY: your-api-key
-      DIVERA_BASE_URL: https://www.divera247.com/api/v2
+      DIVERA_BASE_URL: https://www.divera247.com/api
       DIVERA_POLL_INTERVAL_MS: 10000
       CONFIGURATION_PATH: /app/config/instance-config.yaml
     volumes:
       - ./local-config/instance-config.yaml:/app/config/instance-config.yaml:ro
     restart: unless-stopped
+    stop_grace_period: 35s
 ```
 
 ---

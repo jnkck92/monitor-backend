@@ -6,6 +6,8 @@ import de.jkueck.monitor.backend.dto.response.MonitorWebResponse;
 import de.jkueck.monitor.backend.dto.response.divera.DiveraResponse;
 import de.jkueck.monitor.backend.dto.response.divera.VehicleStatus;
 import de.jkueck.monitor.backend.dto.response.divera.VehicleStatusGroupResponse;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -38,7 +40,6 @@ class MonitorPollingServiceTest {
     @Mock
     private DiveraResponseLogger responseLogger;
 
-    @InjectMocks
     private MonitorPollingService pollingService;
 
     private Configuration config;
@@ -47,6 +48,9 @@ class MonitorPollingServiceTest {
 
     @BeforeEach
     void setUp() {
+        MeterRegistry meterRegistry = new SimpleMeterRegistry();
+        pollingService = new MonitorPollingService(client, configService, stateBuilder, responseLogger, meterRegistry);
+
         config = new Configuration("TestFW", List.of(), List.of(), List.of(), null, Map.of(), List.of());
         diveraResponse = new DiveraResponse(true, new DiveraResponse.Data(Map.of()));
         vehicleStatusResponse = new VehicleStatusGroupResponse(true, List.of());
