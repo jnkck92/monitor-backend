@@ -30,7 +30,7 @@ class VehicleOrderBuilderTest {
 
     @Test
     void alertedVehiclesAppearFirstAndAreMarkedAlerted() {
-        Rule rule = new Rule("Brand", List.of("B2"), List.of("v2", "v1"), null, null);
+        Rule rule = new Rule("Brand", List.of("B2"), List.of("v2", "v1"), null, null, null);
         Configuration config = configWithDefaultOrder(List.of("v1", "v2", "v3", "v4"));
 
         List<UnitWebResponse> result = builder.buildOrderedList(allVehicles, rule, config);
@@ -43,7 +43,7 @@ class VehicleOrderBuilderTest {
 
     @Test
     void nonAlertedVehiclesFollowInDefaultOrder() {
-        Rule rule = new Rule("Brand", List.of("B2"), List.of("v2"), null, null);
+        Rule rule = new Rule("Brand", List.of("B2"), List.of("v2"), null, null, null);
         Configuration config = configWithDefaultOrder(List.of("v1", "v2", "v3", "v4"));
 
         List<UnitWebResponse> result = builder.buildOrderedList(allVehicles, rule, config);
@@ -59,7 +59,7 @@ class VehicleOrderBuilderTest {
 
     @Test
     void usesRemainingOrderWhenProvided() {
-        Rule rule = new Rule("Brand", List.of("B2"), List.of("v1"), List.of("v4", "v3", "v2"), null);
+        Rule rule = new Rule("Brand", List.of("B2"), List.of("v1"), List.of("v4", "v3", "v2"), null, null);
         Configuration config = configWithDefaultOrder(List.of("v1", "v2", "v3", "v4"));
 
         List<UnitWebResponse> result = builder.buildOrderedList(allVehicles, rule, config);
@@ -72,7 +72,7 @@ class VehicleOrderBuilderTest {
 
     @Test
     void unknownVehicleIdInRuleIsSkipped() {
-        Rule rule = new Rule("Brand", List.of("B2"), List.of("v_unknown", "v1"), null, null);
+        Rule rule = new Rule("Brand", List.of("B2"), List.of("v_unknown", "v1"), null, null, null);
         Configuration config = configWithDefaultOrder(List.of("v1", "v2", "v3", "v4"));
 
         List<UnitWebResponse> result = builder.buildOrderedList(allVehicles, rule, config);
@@ -83,7 +83,7 @@ class VehicleOrderBuilderTest {
 
     @Test
     void emptyVehicleOrderReturnsAllAsNonAlerted() {
-        Rule rule = new Rule("Brand", List.of(), List.of(), null, null);
+        Rule rule = new Rule("Brand", List.of(), List.of(), null, null, null);
         Configuration config = configWithDefaultOrder(List.of("v1", "v2", "v3", "v4"));
 
         List<UnitWebResponse> result = builder.buildOrderedList(allVehicles, rule, config);

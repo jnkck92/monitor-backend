@@ -1,28 +1,18 @@
 package de.jkueck.monitor.backend.service;
 
 import de.jkueck.monitor.backend.client.DiveraClient;
-import de.jkueck.monitor.backend.dto.configuration.*;
-import de.jkueck.monitor.backend.dto.response.AlarmWebResponse;
+import de.jkueck.monitor.backend.dto.configuration.Configuration;
 import de.jkueck.monitor.backend.dto.response.MonitorWebResponse;
-import de.jkueck.monitor.backend.dto.response.RadioStatusWebResponse;
-import de.jkueck.monitor.backend.dto.response.UnitWebResponse;
-import de.jkueck.monitor.backend.dto.response.divera.AlarmResponse;
 import de.jkueck.monitor.backend.dto.response.divera.DiveraResponse;
-import de.jkueck.monitor.backend.dto.response.divera.VehicleStatus;
 import de.jkueck.monitor.backend.dto.response.divera.VehicleStatusGroupResponse;
 import jakarta.annotation.PostConstruct;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-import tools.jackson.databind.ObjectMapper;
 
-import java.time.Instant;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
@@ -31,13 +21,15 @@ import java.util.concurrent.atomic.AtomicReference;
 public class MonitorPollingService {
 
     private final DiveraClient client;
+
     private final ConfigurationService configService;
+
     private final MonitorStateBuilder stateBuilder;
+
     private final DiveraResponseLogger responseLogger;
 
     @Getter
-    private final AtomicReference<MonitorWebResponse> currentState =
-            new AtomicReference<>(new MonitorWebResponse("DEFAULT", "STANDBY", List.of(), List.of(), null, null, null));
+    private final AtomicReference<MonitorWebResponse> currentState = new AtomicReference<>(new MonitorWebResponse("DEFAULT", "STANDBY", List.of(), List.of(), null, null, null));
 
     @PostConstruct
     public void initialPoll() {
@@ -62,8 +54,7 @@ public class MonitorPollingService {
         } catch (Exception e) {
             log.error("Error during poll: {}", e.getMessage(), e);
             MonitorWebResponse old = currentState.get();
-            currentState.set(new MonitorWebResponse(old.departmentName(), old.mode(),
-                    old.persons(), old.vehicles(), old.alarm(), old.lastUpdate(), e.getMessage()));
+            currentState.set(new MonitorWebResponse(old.departmentName(), old.mode(), old.persons(), old.vehicles(), old.alarm(), old.lastUpdate(), e.getMessage()));
         }
     }
 }

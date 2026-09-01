@@ -24,7 +24,7 @@ public class MonitorStateBuilder {
     private static final RuleGroup DEFAULT_RULE_GROUP =
             new RuleGroup("Unbekannter Einsatz", "Unbekannter Einsatz", "#999999", List.of());
     private static final Rule DEFAULT_RULE =
-            new Rule("Unbekannter Einsatz", List.of(), List.of(), null, null);
+            new Rule("Unbekannter Einsatz", List.of(), List.of(), null, null, null);
 
     private final KeywordMatcher keywordMatcher;
     private final VehicleOrderBuilder vehicleOrderBuilder;
@@ -47,7 +47,7 @@ public class MonitorStateBuilder {
         Rule rule = keywordMatcher.matchRule(alarm, ruleGroup).orElse(DEFAULT_RULE);
 
         List<UnitWebResponse> alarmedVehicles = vehicleOrderBuilder.buildOrderedList(vehicles, rule, configuration);
-        AlarmWebResponse alarmInfo = new AlarmWebResponse(alarm.title(), alarm.address(), rule.label(), ruleGroup.color());
+        AlarmWebResponse alarmInfo = new AlarmWebResponse(alarm.title(), alarm.address(), rule.label(), ruleGroup.color(), rule.hint());
 
         return new MonitorWebResponse(configuration.departmentName(), MonitorMode.ALARM.name(),
                 persons, alarmedVehicles, alarmInfo, Instant.now(clock), null);

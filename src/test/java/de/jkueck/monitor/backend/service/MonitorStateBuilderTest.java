@@ -26,7 +26,7 @@ class MonitorStateBuilderTest {
     private Configuration defaultConfig() {
         Unit vehicle = new Unit("v1", "LF20", "LF20", "vehicle", "FL-FW 11", 100L);
         Unit person = new Unit("p1", "Max", "Max", "person", "P1", 200L);
-        Rule rule = new Rule("Zimmerbrand", List.of("B2"), List.of("v1"), null, null);
+        Rule rule = new Rule("Zimmerbrand", List.of("B2"), List.of("v1"), null, null, "Atemschutz bereitstellen");
         RuleGroup group = new RuleGroup("Brand", "Brandeinsatz", "#ff0000", List.of(rule));
         return new Configuration("TestFW", List.of(person), List.of(vehicle),
                 List.of("v1"), null,
@@ -108,4 +108,49 @@ class MonitorStateBuilderTest {
 
         assertThat(activeAlarmResolver.find(response)).isEmpty();
     }
+
+    @Test
+    void buildReturnsHintFromMatchedRule() {
+        Unit vehicle = new Unit("v1", "LF20", "LF20", "vehicle", "FL-FW 11", 100L);
+        Rule rule = new Rule("Zimmerbrand", List.of("B2"), List.of("v1"), null, null, "Atemschutz bereitstellen");
+        RuleGroup group = new RuleGroup("Brand", "Brandeinsatz", "#ff0000", List.of(rule));
+        Configuration config = new Configuration("TestFW", List.of(), List.of(vehicle),
+                List.of("v1"), null,
+                Map.of("2", new Status("Status 2", "#00ff00")),
+                List.of(group));
+        List<VehicleStatus> live = List.of(new VehicleStatus(100L, 2));
+
+        MonitorWebResponse result = stateBuilder.build(activeAlarmResponse("B2 Zimmerbrand"), live, config);
+
+        assertThat(result.alarm().hint()).isEqualTo("Atemschutz bereitstellen");
+    }
+
+    @Test
+    void buildReturnsNullHintWhenRuleHasNoHint() {
+        List<VehicleStatus> live = List.of(new VehicleStatus(100L, 2));
+
+        MonitorWebResponse result = stateBuilder.build(activeAlarmResponse("B2 Zimmerbrand"), live, defaultConfig());
+
+        assertThat(result.mode()).isEqualTo("ALARM");
+        assertThat(result.alarm().hint()).isEqualTo("Atemschutz bereitstellen");
+    }
+
+    @Test
+    void buildReturnsNullHintWhenNoRuleMatches() {
+        List<VehicleStatus> live = List.of(new VehicleStatus(100L, 2));
+
+        MonitorWebResponse result = stateBuilder.build(activeAlarmResponse("XYZ Unbekannt"), live, defaultConfig());
+
+        assertThat(result.alarm().hint()).isNull();
+    }
+
+    @Test
+    void buildReturnsNullHintInStandby() {
+        List<VehicleStatus> live = List.of(new VehicleStatus(100L, 2));
+
+        MonitorWebResponse result = stateBuilder.build(noAlarmResponse(), live, defaultConfig());
+
+        assertThat(result.alarm()).isNull();
+    }
+
 }

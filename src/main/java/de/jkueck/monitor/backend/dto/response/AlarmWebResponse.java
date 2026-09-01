@@ -8,7 +8,9 @@ public record AlarmWebResponse(
 
         String label,
 
-        String color
+        String color,
+
+        String hint
 
 ) {
 }

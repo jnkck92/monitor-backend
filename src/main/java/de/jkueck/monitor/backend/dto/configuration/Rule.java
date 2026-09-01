@@ -16,7 +16,9 @@ public record Rule(
 
         List<String> remainingOrder,
 
-        MatchMode matchMode
+        MatchMode matchMode,
+
+        String hint
 
 ) {
 }
