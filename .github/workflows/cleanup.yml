@@ -1,0 +1,20 @@
+name: Cleanup GHCR
+
+on:
+  schedule:
+    - cron: '0 3 * * 0'
+
+permissions:
+  packages: write
+
+jobs:
+  cleanup:
+    name: Remove old images
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/delete-package-versions@v5
+        with:
+          package-name: monitor-backend
+          package-type: container
+          min-versions-to-keep: 5
+          delete-only-untagged-versions: true

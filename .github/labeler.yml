@@ -1,0 +1,19 @@
+backend:
+  - changed-files:
+      - any-glob-to-any-file: 'src/main/**'
+
+tests:
+  - changed-files:
+      - any-glob-to-any-file: 'src/test/**'
+
+config:
+  - changed-files:
+      - any-glob-to-any-file: ['local-config/**', 'src/main/resources/**']
+
+ci:
+  - changed-files:
+      - any-glob-to-any-file: ['.github/**', 'Dockerfile', 'docker-compose.yaml']
+
+docs:
+  - changed-files:
+      - any-glob-to-any-file: ['*.md', 'docs/**']
