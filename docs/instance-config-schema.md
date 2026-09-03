@@ -18,6 +18,18 @@ ruleGroups: []                  # Required – Alarm rule groups with keyword ma
 
 ---
 
+## `divera`
+
+Divera 24/7 API credentials for this tenant.
+
+```yaml
+divera:
+  accessKey: string    # Required – Divera 24/7 API access key for this department
+  baseUrl: string       # Optional – overrides the global default Divera base URL
+```
+
+---
+
 ## `persons` / `vehicles` (Unit)
 
 Each entry in `persons` and `vehicles` follows the same schema:

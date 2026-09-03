@@ -1,5 +1,6 @@
 package de.jkueck.monitor.backend.client;
 
+import de.jkueck.monitor.backend.dto.configuration.DiveraConfig;
 import de.jkueck.monitor.backend.dto.response.divera.AlarmResponse;
 import de.jkueck.monitor.backend.dto.response.divera.DiveraResponse;
 import de.jkueck.monitor.backend.dto.response.divera.VehicleStatus;
@@ -27,31 +28,24 @@ public class MockDiveraApiClient implements DiveraClient {
     }
 
     @Override
-    public DiveraResponse pullAll() {
-
+    public DiveraResponse pullAll(DiveraConfig diveraConfig) {
         if (!alarmActive.get()) {
             return new DiveraResponse(true, new DiveraResponse.Data(Map.of()));
         }
-
-
         return new DiveraResponse(
                 true,
                 new DiveraResponse.Data(
                         Map.of("123", new AlarmResponse(
-                                123L,
-                                "F012 - Heckenbrand",
-                                "Brennt Hecke",
+                                123L, "F012 - Heckenbrand", "Brennt Hecke",
                                 "Teststraße 1, 12345 Testort",
-                                Instant.now().getEpochSecond(),
-                                false,
-                                true
+                                Instant.now().getEpochSecond(), false, true
                         ))
                 )
         );
     }
 
     @Override
-    public VehicleStatusGroupResponse pullVehicleStatus() {
+    public VehicleStatusGroupResponse pullVehicleStatus(DiveraConfig diveraConfig) {
         List<VehicleStatus> mockStatuses = List.of(
                 new VehicleStatus(4716L, alarmActive.get() ? 3 : 2), // ELW
                 new VehicleStatus(4714L, alarmActive.get() ? 4 : 1), // HLF

@@ -11,6 +11,7 @@ import tools.jackson.dataformat.yaml.YAMLMapper;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -22,18 +23,21 @@ class ConfigurationServiceTest {
     @TempDir
     Path tempDir;
 
-    private ConfigurationService createService(String path) {
-        return new ConfigurationService(new ConfigurationProperties(path), yamlMapper);
+    private ConfigurationService createService(List<String> tenants) {
+        return new ConfigurationService(new ConfigurationProperties(tempDir.toString(), tenants), yamlMapper);
     }
 
-    private Path writeConfig(String yaml) throws IOException {
-        Path file = tempDir.resolve("test-config.yaml");
-        Files.writeString(file, yaml);
-        return file;
+    private void writeConfigForTenant(String tenant, String yaml) throws IOException {
+        Path tenantDir = tempDir.resolve(tenant);
+        Files.createDirectories(tenantDir);
+        Files.writeString(tenantDir.resolve("instance-config.yaml"), yaml);
     }
 
     private static final String VALID_CONFIG = """
             departmentName: TestFW
+            divera:
+              accessKey: "test-key"
+              baseUrl: "https://www.divera247.com"
             persons: []
             vehicles:
               - id: v1
@@ -60,15 +64,15 @@ class ConfigurationServiceTest {
             """;
 
     @Test
-    @DisplayName("loadConfig() lädt gültige YAML korrekt")
+    @DisplayName("getConfigForTenant() lädt gültige YAML korrekt")
     void loadConfigSuccessfully() throws IOException {
-        Path file = writeConfig(VALID_CONFIG);
-        ConfigurationService service = createService(file.toString());
+        writeConfigForTenant("musterstadt", VALID_CONFIG);
+        ConfigurationService service = createService(List.of("musterstadt"));
 
-        service.loadConfig();
+        Configuration config = service.getConfigForTenant("musterstadt");
 
-        Configuration config = service.getConfig();
         assertThat(config.departmentName()).isEqualTo("TestFW");
+        assertThat(config.divera().accessKey()).isEqualTo("test-key");
         assertThat(config.vehicles()).hasSize(1);
         assertThat(config.vehicles().getFirst().id()).isEqualTo("v1");
         assertThat(config.ruleGroups()).hasSize(1);
@@ -76,56 +80,109 @@ class ConfigurationServiceTest {
     }
 
     @Test
-    @DisplayName("loadConfig() wirft Exception wenn Datei nicht existiert")
-    void loadConfigThrowsWhenFileNotFound() {
-        ConfigurationService service = createService("/non/existent/path.yaml");
+    @DisplayName("getConfigForTenant() wirft Exception wenn Tenant-Verzeichnis nicht existiert")
+    void loadConfigThrowsWhenTenantNotFound() {
+        ConfigurationService service = createService(List.of());
 
-        assertThatThrownBy(service::loadConfig)
+        assertThatThrownBy(() -> service.getConfigForTenant("unbekannt"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("does not exist");
     }
 
     @Test
-    @DisplayName("loadConfig() wirft Exception bei ungültiger YAML")
+    @DisplayName("getConfigForTenant() wirft Exception bei ungültiger YAML")
     void loadConfigThrowsOnInvalidYaml() throws IOException {
-        Path file = writeConfig("{{invalid yaml content!!");
-        ConfigurationService service = createService(file.toString());
+        writeConfigForTenant("kaputt", "{{invalid yaml content!!");
+        ConfigurationService service = createService(List.of("kaputt"));
 
-        assertThatThrownBy(service::loadConfig)
-                .isInstanceOf(Exception.class);
+        assertThatThrownBy(() -> service.getConfigForTenant("kaputt"))
+                .isInstanceOf(IllegalStateException.class);
     }
 
     @Test
-    @DisplayName("getConfig() wirft Exception wenn noch nicht geladen")
-    void getConfigThrowsWhenNotLoaded() {
-        ConfigurationService service = createService("/dummy");
+    @DisplayName("getConfigForTenant() cached die Konfiguration")
+    void getConfigCachesResult() throws IOException {
+        writeConfigForTenant("musterstadt", VALID_CONFIG);
+        ConfigurationService service = createService(List.of("musterstadt"));
 
-        assertThatThrownBy(service::getConfig)
+        Configuration first = service.getConfigForTenant("musterstadt");
+        Configuration second = service.getConfigForTenant("musterstadt");
+
+        assertThat(first).isSameAs(second);
+    }
+
+    @Test
+    @DisplayName("reloadTenant() lädt die Konfiguration neu von der Datei")
+    void reloadTenantUpdatesConfig() throws IOException {
+        writeConfigForTenant("musterstadt", VALID_CONFIG);
+        ConfigurationService service = createService(List.of("musterstadt"));
+
+        assertThat(service.getConfigForTenant("musterstadt").departmentName()).isEqualTo("TestFW");
+
+        writeConfigForTenant("musterstadt", VALID_CONFIG.replace("TestFW", "Neue Wehr"));
+        service.reloadTenant("musterstadt");
+
+        assertThat(service.getConfigForTenant("musterstadt").departmentName()).isEqualTo("Neue Wehr");
+    }
+
+    @Test
+    @DisplayName("reloadAll() leert den Cache und lädt alle bekannten Tenants neu")
+    void reloadAllClearsCacheAndReloadsKnownTenants() throws IOException {
+        writeConfigForTenant("tenant-a", VALID_CONFIG);
+        writeConfigForTenant("tenant-b", VALID_CONFIG.replace("TestFW", "Andere Wehr"));
+        ConfigurationService service = createService(List.of("tenant-a", "tenant-b"));
+
+        Configuration a1 = service.getConfigForTenant("tenant-a");
+        Configuration b1 = service.getConfigForTenant("tenant-b");
+
+        service.reloadAll();
+
+        Configuration a2 = service.getConfigForTenant("tenant-a");
+        Configuration b2 = service.getConfigForTenant("tenant-b");
+
+        assertThat(a2).isNotSameAs(a1);
+        assertThat(b2).isNotSameAs(b1);
+        assertThat(a2.departmentName()).isEqualTo("TestFW");
+        assertThat(b2.departmentName()).isEqualTo("Andere Wehr");
+    }
+
+    @Test
+    @DisplayName("reloadAll() wirft Exception wenn ein bekannter Tenant keine gültige Config hat")
+    void reloadAllThrowsWhenKnownTenantConfigMissing() throws IOException {
+        writeConfigForTenant("tenant-a", VALID_CONFIG);
+        // tenant-b ist als bekannt gelistet, hat aber keine Config-Datei
+        ConfigurationService service = createService(List.of("tenant-a", "tenant-b"));
+
+        assertThatThrownBy(service::reloadAll)
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("not been loaded");
+                .hasMessageContaining("tenant-b");
     }
 
     @Test
-    @DisplayName("reload() aktualisiert die Konfiguration")
-    void reloadUpdatesConfig() throws IOException {
-        Path file = writeConfig(VALID_CONFIG);
-        ConfigurationService service = createService(file.toString());
-        service.loadConfig();
+    @DisplayName("verschiedene Tenants liefern unterschiedliche Konfigurationen")
+    void differentTenantsHaveIsolatedConfigs() throws IOException {
+        writeConfigForTenant("tenant-a", VALID_CONFIG);
+        writeConfigForTenant("tenant-b", VALID_CONFIG
+                .replace("TestFW", "Andere Wehr")
+                .replace("test-key", "other-key"));
+        ConfigurationService service = createService(List.of("tenant-a", "tenant-b"));
 
-        assertThat(service.getConfig().departmentName()).isEqualTo("TestFW");
+        Configuration a = service.getConfigForTenant("tenant-a");
+        Configuration b = service.getConfigForTenant("tenant-b");
 
-        // Datei überschreiben
-        Files.writeString(file, VALID_CONFIG.replace("TestFW", "Neue Wehr"));
-        service.reload();
-
-        assertThat(service.getConfig().departmentName()).isEqualTo("Neue Wehr");
+        assertThat(a.departmentName()).isEqualTo("TestFW");
+        assertThat(a.divera().accessKey()).isEqualTo("test-key");
+        assertThat(b.departmentName()).isEqualTo("Andere Wehr");
+        assertThat(b.divera().accessKey()).isEqualTo("other-key");
     }
 
     @Test
-    @DisplayName("loadConfig() parst Personen korrekt")
+    @DisplayName("getConfigForTenant() parst Personen korrekt")
     void loadConfigParsesPersons() throws IOException {
         String yaml = """
                 departmentName: TestFW
+                divera:
+                  accessKey: "test-key"
                 persons:
                   - id: obm
                     name: OrtsBm
@@ -138,20 +195,22 @@ class ConfigurationServiceTest {
                 statuses: {}
                 ruleGroups: []
                 """;
-        Path file = writeConfig(yaml);
-        ConfigurationService service = createService(file.toString());
-        service.loadConfig();
+        writeConfigForTenant("musterstadt", yaml);
+        ConfigurationService service = createService(List.of("musterstadt"));
 
-        assertThat(service.getConfig().persons()).hasSize(1);
-        assertThat(service.getConfig().persons().getFirst().shortName()).isEqualTo("OBM");
-        assertThat(service.getConfig().persons().getFirst().diveraId()).isEqualTo(55884L);
+        Configuration config = service.getConfigForTenant("musterstadt");
+        assertThat(config.persons()).hasSize(1);
+        assertThat(config.persons().getFirst().shortName()).isEqualTo("OBM");
+        assertThat(config.persons().getFirst().diveraId()).isEqualTo(55884L);
     }
 
     @Test
-    @DisplayName("loadConfig() parst hint in Rules korrekt")
+    @DisplayName("getConfigForTenant() parst hint in Rules korrekt")
     void loadConfigParsesHint() throws IOException {
         String yaml = """
                 departmentName: TestFW
+                divera:
+                  accessKey: "test-key"
                 persons: []
                 vehicles: []
                 defaultOrder: []
@@ -166,11 +225,27 @@ class ConfigurationServiceTest {
                         vehicleOrder: []
                         hint: "Atemschutz bereitstellen"
                 """;
-        Path file = writeConfig(yaml);
-        ConfigurationService service = createService(file.toString());
-        service.loadConfig();
+        writeConfigForTenant("musterstadt", yaml);
+        ConfigurationService service = createService(List.of("musterstadt"));
 
-        assertThat(service.getConfig().ruleGroups().getFirst().rules().getFirst().hint())
+        Configuration config = service.getConfigForTenant("musterstadt");
+        assertThat(config.ruleGroups().getFirst().rules().getFirst().hint())
                 .isEqualTo("Atemschutz bereitstellen");
+    }
+
+    @Test
+    @DisplayName("getKnownTenants() gibt die konfigurierte Tenant-Liste zurück")
+    void getKnownTenantsReturnsConfiguredList() {
+        ConfigurationService service = createService(List.of("tenant-a", "tenant-b"));
+
+        assertThat(service.getKnownTenants()).containsExactly("tenant-a", "tenant-b");
+    }
+
+    @Test
+    @DisplayName("getKnownTenants() gibt leere Liste zurück wenn keine Tenants konfiguriert sind")
+    void getKnownTenantsReturnsEmptyListWhenNoneConfigured() {
+        ConfigurationService service = createService(List.of());
+
+        assertThat(service.getKnownTenants()).isEmpty();
     }
 }

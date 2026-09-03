@@ -1,10 +1,13 @@
 package de.jkueck.monitor.backend.config;
 
+import de.jkueck.monitor.backend.dto.response.MonitorWebResponse;
 import de.jkueck.monitor.backend.service.MonitorPollingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.health.contributor.Health;
 import org.springframework.boot.health.contributor.HealthIndicator;
 import org.springframework.stereotype.Component;
+
+import java.util.Map;
 
 @Component
 @RequiredArgsConstructor
@@ -14,19 +17,28 @@ public class DiveraHealthIndicator implements HealthIndicator {
 
     @Override
     public Health health() {
-        var state = pollingService.getCurrentState().get();
+        Map<String, MonitorWebResponse> states = pollingService.getAllStates();
 
-        if (state.error() != null) {
-            return Health.down()
-                    .withDetail("mode", state.mode())
-                    .withDetail("error", state.error())
+        if (states.isEmpty()) {
+            return Health.unknown()
+                    .withDetail("reason", "No tenant has been polled yet")
                     .build();
         }
 
-        return Health.up()
-                .withDetail("mode", state.mode())
-                .withDetail("department", state.departmentName())
-                .withDetail("lastUpdate", state.lastUpdate())
-                .build();
+        boolean anyError = states.values().stream().anyMatch(s -> s.error() != null);
+        Health.Builder builder = anyError ? Health.down() : Health.up();
+
+        states.forEach((tenant, state) -> {
+            if (state.error() != null) {
+                builder.withDetail(tenant, Map.of("mode", state.mode(), "error", state.error()));
+            } else {
+                builder.withDetail(tenant, Map.of(
+                        "mode", state.mode(),
+                        "department", state.departmentName(),
+                        "lastUpdate", state.lastUpdate()));
+            }
+        });
+
+        return builder.build();
     }
 }

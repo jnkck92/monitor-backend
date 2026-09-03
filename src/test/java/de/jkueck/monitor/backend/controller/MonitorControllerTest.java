@@ -14,7 +14,6 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -23,6 +22,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(MonitorController.class)
 class MonitorControllerTest {
 
+    private static final String TENANT = "musterstadt";
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -30,14 +31,14 @@ class MonitorControllerTest {
     private MonitorPollingService pollingService;
 
     @Test
-    @DisplayName("GET /api/v1/monitor/status gibt STANDBY-State zurück")
+    @DisplayName("GET /api/v1/monitor/status gibt STANDBY-State für den angegebenen Tenant zurück")
     void getStatusReturnsStandbyState() throws Exception {
         MonitorWebResponse state = new MonitorWebResponse("TestFW", "STANDBY",
                 List.of(), List.of(), null, Instant.parse("2026-09-01T12:00:00Z"), null);
 
-        when(pollingService.getCurrentState()).thenReturn(new AtomicReference<>(state));
+        when(pollingService.getCurrentState(TENANT)).thenReturn(state);
 
-        mockMvc.perform(get("/api/v1/monitor/status"))
+        mockMvc.perform(get("/api/v1/monitor/status").header("X-Tenant", TENANT))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.departmentName").value("TestFW"))
                 .andExpect(jsonPath("$.mode").value("STANDBY"))
@@ -56,9 +57,9 @@ class MonitorControllerTest {
         MonitorWebResponse state = new MonitorWebResponse("TestFW", "ALARM",
                 List.of(), List.of(), alarm, Instant.parse("2026-09-01T12:00:00Z"), null);
 
-        when(pollingService.getCurrentState()).thenReturn(new AtomicReference<>(state));
+        when(pollingService.getCurrentState(TENANT)).thenReturn(state);
 
-        mockMvc.perform(get("/api/v1/monitor/status"))
+        mockMvc.perform(get("/api/v1/monitor/status").header("X-Tenant", TENANT))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.mode").value("ALARM"))
                 .andExpect(jsonPath("$.alarm.title").value("B2 Zimmerbrand"))
@@ -79,9 +80,9 @@ class MonitorControllerTest {
         MonitorWebResponse state = new MonitorWebResponse("TestFW", "STANDBY",
                 List.of(person), List.of(vehicle), null, Instant.parse("2026-09-01T12:00:00Z"), null);
 
-        when(pollingService.getCurrentState()).thenReturn(new AtomicReference<>(state));
+        when(pollingService.getCurrentState(TENANT)).thenReturn(state);
 
-        mockMvc.perform(get("/api/v1/monitor/status"))
+        mockMvc.perform(get("/api/v1/monitor/status").header("X-Tenant", TENANT))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.vehicles[0].id").value("v1"))
                 .andExpect(jsonPath("$.vehicles[0].name").value("LF20"))
@@ -99,9 +100,9 @@ class MonitorControllerTest {
         MonitorWebResponse state = new MonitorWebResponse("TestFW", "STANDBY",
                 List.of(), List.of(), null, Instant.parse("2026-09-01T12:00:00Z"), "API timeout");
 
-        when(pollingService.getCurrentState()).thenReturn(new AtomicReference<>(state));
+        when(pollingService.getCurrentState(TENANT)).thenReturn(state);
 
-        mockMvc.perform(get("/api/v1/monitor/status"))
+        mockMvc.perform(get("/api/v1/monitor/status").header("X-Tenant", TENANT))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.error").value("API timeout"))
                 .andExpect(jsonPath("$.mode").value("STANDBY"));
@@ -113,9 +114,9 @@ class MonitorControllerTest {
         MonitorWebResponse state = new MonitorWebResponse("TestFW", "STANDBY",
                 List.of(), List.of(), null, Instant.now(), null);
 
-        when(pollingService.getCurrentState()).thenReturn(new AtomicReference<>(state));
+        when(pollingService.getCurrentState(TENANT)).thenReturn(state);
 
-        mockMvc.perform(get("/api/v1/monitor/status"))
+        mockMvc.perform(get("/api/v1/monitor/status").header("X-Tenant", TENANT))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith("application/json"));
     }
@@ -127,10 +128,37 @@ class MonitorControllerTest {
         MonitorWebResponse state = new MonitorWebResponse("TestFW", "STANDBY",
                 List.of(), List.of(), null, timestamp, null);
 
-        when(pollingService.getCurrentState()).thenReturn(new AtomicReference<>(state));
+        when(pollingService.getCurrentState(TENANT)).thenReturn(state);
 
-        mockMvc.perform(get("/api/v1/monitor/status"))
+        mockMvc.perform(get("/api/v1/monitor/status").header("X-Tenant", TENANT))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.lastUpdate").value("2026-09-01T12:00:00Z"));
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/monitor/status ohne X-Tenant Header liefert 400")
+    void getStatusWithoutTenantHeaderReturnsBadRequest() throws Exception {
+        mockMvc.perform(get("/api/v1/monitor/status"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/monitor/status liefert unterschiedliche States für unterschiedliche Tenants")
+    void getStatusReturnsDifferentStatesForDifferentTenants() throws Exception {
+        MonitorWebResponse stateA = new MonitorWebResponse("FW A", "STANDBY",
+                List.of(), List.of(), null, Instant.now(), null);
+        MonitorWebResponse stateB = new MonitorWebResponse("FW B", "ALARM",
+                List.of(), List.of(), null, Instant.now(), null);
+
+        when(pollingService.getCurrentState("tenant-a")).thenReturn(stateA);
+        when(pollingService.getCurrentState("tenant-b")).thenReturn(stateB);
+
+        mockMvc.perform(get("/api/v1/monitor/status").header("X-Tenant", "tenant-a"))
+                .andExpect(jsonPath("$.departmentName").value("FW A"))
+                .andExpect(jsonPath("$.mode").value("STANDBY"));
+
+        mockMvc.perform(get("/api/v1/monitor/status").header("X-Tenant", "tenant-b"))
+                .andExpect(jsonPath("$.departmentName").value("FW B"))
+                .andExpect(jsonPath("$.mode").value("ALARM"));
     }
 }

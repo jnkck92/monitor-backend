@@ -3,6 +3,7 @@ package de.jkueck.monitor.backend.client;
 import com.github.tomakehurst.wiremock.junit5.WireMockRuntimeInfo;
 import com.github.tomakehurst.wiremock.junit5.WireMockTest;
 import de.jkueck.monitor.backend.config.DiveraProperties;
+import de.jkueck.monitor.backend.dto.configuration.DiveraConfig;
 import de.jkueck.monitor.backend.dto.response.divera.DiveraResponse;
 import de.jkueck.monitor.backend.dto.response.divera.VehicleStatusGroupResponse;
 import org.junit.jupiter.api.DisplayName;
@@ -16,9 +17,14 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @WireMockTest
 class RealDiveraApiClientTest {
 
-    private RealDiveraApiClient createClient(String baseUrl) {
-        DiveraProperties properties = new DiveraProperties("test-key", baseUrl, 10000L);
-        return new RealDiveraApiClient(properties);
+    // Defaults ohne accessKey – der kommt jetzt pro Tenant aus der DiveraConfig
+    private RealDiveraApiClient createClient() {
+        DiveraProperties defaults = new DiveraProperties(null, 10000L);
+        return new RealDiveraApiClient(defaults);
+    }
+
+    private DiveraConfig credentials(String baseUrl) {
+        return new DiveraConfig("test-key", baseUrl);
     }
 
     @Test
@@ -35,8 +41,8 @@ class RealDiveraApiClientTest {
                         }
                         """)));
 
-        RealDiveraApiClient client = createClient(wm.getHttpBaseUrl());
-        DiveraResponse response = client.pullAll();
+        RealDiveraApiClient client = createClient();
+        DiveraResponse response = client.pullAll(credentials(wm.getHttpBaseUrl()));
 
         assertThat(response.success()).isTrue();
         assertThat(response.data().items()).isEmpty();
@@ -65,8 +71,8 @@ class RealDiveraApiClientTest {
                         }
                         """)));
 
-        RealDiveraApiClient client = createClient(wm.getHttpBaseUrl());
-        DiveraResponse response = client.pullAll();
+        RealDiveraApiClient client = createClient();
+        DiveraResponse response = client.pullAll(credentials(wm.getHttpBaseUrl()));
 
         assertThat(response.data().items()).hasSize(1);
         assertThat(response.data().items().get("123").title()).isEqualTo("F01 Kleinbrand");
@@ -89,8 +95,8 @@ class RealDiveraApiClientTest {
                         }
                         """)));
 
-        RealDiveraApiClient client = createClient(wm.getHttpBaseUrl());
-        VehicleStatusGroupResponse response = client.pullVehicleStatus();
+        RealDiveraApiClient client = createClient();
+        VehicleStatusGroupResponse response = client.pullVehicleStatus(credentials(wm.getHttpBaseUrl()));
 
         assertThat(response.success()).isTrue();
         assertThat(response.data()).hasSize(2);
@@ -106,11 +112,35 @@ class RealDiveraApiClientTest {
                         {"success": true, "data": {"items": {}}}
                         """)));
 
-        RealDiveraApiClient client = createClient(wm.getHttpBaseUrl());
-        client.pullAll();
+        RealDiveraApiClient client = createClient();
+        client.pullAll(credentials(wm.getHttpBaseUrl()));
 
         verify(getRequestedFor(urlPathEqualTo("/v2/alarms"))
                 .withQueryParam("accesskey", equalTo("test-key")));
+    }
+
+    @Test
+    @DisplayName("pullAll() nutzt unterschiedliche accesskeys pro Tenant")
+    void pullAllUsesPerTenantAccessKey(WireMockRuntimeInfo wm) {
+        stubFor(get(urlPathEqualTo("/v2/alarms"))
+                .withQueryParam("accesskey", equalTo("tenant-a-key"))
+                .willReturn(okJson("""
+                        {"success": true, "data": {"items": {}}}
+                        """)));
+        stubFor(get(urlPathEqualTo("/v2/alarms"))
+                .withQueryParam("accesskey", equalTo("tenant-b-key"))
+                .willReturn(okJson("""
+                        {"success": true, "data": {"items": {}}}
+                        """)));
+
+        RealDiveraApiClient client = createClient();
+        client.pullAll(new DiveraConfig("tenant-a-key", wm.getHttpBaseUrl()));
+        client.pullAll(new DiveraConfig("tenant-b-key", wm.getHttpBaseUrl()));
+
+        verify(getRequestedFor(urlPathEqualTo("/v2/alarms"))
+                .withQueryParam("accesskey", equalTo("tenant-a-key")));
+        verify(getRequestedFor(urlPathEqualTo("/v2/alarms"))
+                .withQueryParam("accesskey", equalTo("tenant-b-key")));
     }
 
     @Test
@@ -119,9 +149,10 @@ class RealDiveraApiClientTest {
         stubFor(get(urlPathEqualTo("/v2/alarms"))
                 .willReturn(serverError()));
 
-        RealDiveraApiClient client = createClient(wm.getHttpBaseUrl());
+        RealDiveraApiClient client = createClient();
+        DiveraConfig cfg = credentials(wm.getHttpBaseUrl());
 
-        assertThatThrownBy(client::pullAll).isInstanceOf(Exception.class);
+        assertThatThrownBy(() -> client.pullAll(cfg)).isInstanceOf(Exception.class);
     }
 
     @Test
@@ -130,9 +161,10 @@ class RealDiveraApiClientTest {
         stubFor(get(urlPathEqualTo("/v2/alarms"))
                 .willReturn(ok().withFixedDelay(15000))); // 15s > 10s readTimeout
 
-        RealDiveraApiClient client = createClient(wm.getHttpBaseUrl());
+        RealDiveraApiClient client = createClient();
+        DiveraConfig cfg = credentials(wm.getHttpBaseUrl());
 
-        assertThatThrownBy(client::pullAll)
+        assertThatThrownBy(() -> client.pullAll(cfg))
                 .isInstanceOf(ResourceAccessException.class);
     }
 
@@ -142,8 +174,9 @@ class RealDiveraApiClientTest {
         stubFor(get(urlPathEqualTo("/v2/alarms"))
                 .willReturn(unauthorized()));
 
-        RealDiveraApiClient client = createClient(wm.getHttpBaseUrl());
+        RealDiveraApiClient client = createClient();
+        DiveraConfig cfg = credentials(wm.getHttpBaseUrl());
 
-        assertThatThrownBy(client::pullAll).isInstanceOf(Exception.class);
+        assertThatThrownBy(() -> client.pullAll(cfg)).isInstanceOf(Exception.class);
     }
 }

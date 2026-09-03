@@ -43,7 +43,7 @@ class KeywordMatcherTest {
     }
 
     private Configuration config(List<RuleGroup> ruleGroups) {
-        return new Configuration("Test-Wehr", List.of(), List.of(), List.of(), "ELW", Map.of(), ruleGroups);
+        return new Configuration("Test-Wehr", null, List.of(), List.of(), List.of(), "ELW", Map.of(), ruleGroups);
     }
 
     @Nested

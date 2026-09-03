@@ -17,7 +17,7 @@ class UnitStatusEnricherTest {
     private final UnitStatusEnricher enricher = new UnitStatusEnricher();
 
     private Configuration configWithStatuses(Map<String, Status> statuses) {
-        return new Configuration("TestFW", List.of(), List.of(), List.of(), null, statuses, List.of());
+        return new Configuration("TestFW", null, List.of(), List.of(), List.of(), null, statuses, List.of());
     }
 
     @Test

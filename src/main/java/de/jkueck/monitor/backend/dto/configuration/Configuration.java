@@ -7,6 +7,8 @@ public record Configuration(
 
         String departmentName,
 
+        DiveraConfig divera,
+
         List<Unit> persons,
 
         List<Unit> vehicles,

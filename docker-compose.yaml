@@ -8,8 +8,9 @@ services:
       DIVERA_ACCESSKEY: dein-api-key-hier
       DIVERA_BASE_URL: https://app.divera247.com/api
       DIVERA_POLL_INTERVAL_MS: 10000
-      INSTANCE_CONFIG_PATH: /app/config/instance-config.yaml
+      INSTANCE_CONFIG_PATH: /app/local-config
+      CONFIGURATION_TENANTS: feuerwehr-test-1,feuerwehr-test-2
     volumes:
-      - ./local-config/instance-config.yaml:/app/config/instance-config.yaml:ro
+      - ./local-config:/app/local-config
     restart: unless-stopped
     stop_grace_period: 35s

@@ -25,7 +25,7 @@ class VehicleOrderBuilderTest {
     );
 
     private Configuration configWithDefaultOrder(List<String> defaultOrder) {
-        return new Configuration("TestFW", List.of(), List.of(), defaultOrder, null, Map.of(), List.of());
+        return new Configuration("TestFW", null, List.of(), List.of(), defaultOrder, null, Map.of(), List.of());
     }
 
     @Test

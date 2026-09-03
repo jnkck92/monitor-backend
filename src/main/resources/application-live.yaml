@@ -4,4 +4,4 @@ divera:
   poll-interval-ms: 10000
 
 configuration:
-  path: ${INSTANCE_CONFIG_PATH:./local-config/instance-config.yaml}
+  path: ${INSTANCE_CONFIG_PATH:./local-config}

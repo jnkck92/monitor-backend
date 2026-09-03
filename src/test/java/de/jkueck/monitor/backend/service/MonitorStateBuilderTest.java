@@ -28,7 +28,7 @@ class MonitorStateBuilderTest {
         Unit person = new Unit("p1", "Max", "Max", "person", "P1", 200L);
         Rule rule = new Rule("Zimmerbrand", List.of("B2"), List.of("v1"), null, null, "Atemschutz bereitstellen");
         RuleGroup group = new RuleGroup("Brand", "Brandeinsatz", "#ff0000", List.of(rule));
-        return new Configuration("TestFW", List.of(person), List.of(vehicle),
+        return new Configuration("TestFW", null, List.of(person), List.of(vehicle),
                 List.of("v1"), null,
                 Map.of("2", new Status("Status 2", "#00ff00")),
                 List.of(group));
@@ -114,7 +114,7 @@ class MonitorStateBuilderTest {
         Unit vehicle = new Unit("v1", "LF20", "LF20", "vehicle", "FL-FW 11", 100L);
         Rule rule = new Rule("Zimmerbrand", List.of("B2"), List.of("v1"), null, null, "Atemschutz bereitstellen");
         RuleGroup group = new RuleGroup("Brand", "Brandeinsatz", "#ff0000", List.of(rule));
-        Configuration config = new Configuration("TestFW", List.of(), List.of(vehicle),
+        Configuration config = new Configuration("TestFW", null, List.of(), List.of(vehicle),
                 List.of("v1"), null,
                 Map.of("2", new Status("Status 2", "#00ff00")),
                 List.of(group));
