@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -35,11 +36,16 @@ public class MockDiveraApiClient implements DiveraClient {
         return new DiveraResponse(
                 true,
                 new DiveraResponse.Data(
-                        Map.of("123", new AlarmResponse(
-                                123L, "F012 - Heckenbrand", "Brennt Hecke",
-                                "Teststraße 1, 12345 Testort",
-                                Instant.now().getEpochSecond(), false, true
-                        ))
+                        Map.of("123",
+                                new AlarmResponse(
+                                        123L, "H 052 - Türnotöffnung",
+                                        "Brennt ein Wahlplakat an einer Laterne",
+                                        "Kiepelbergstraße, 27721 Ritterhude Ritterhude",
+                                        Instant.now().minus(10, ChronoUnit.MINUTES).getEpochSecond(),
+                                        false,
+                                        true
+                                )
+                        )
                 )
         );
     }
@@ -47,17 +53,17 @@ public class MockDiveraApiClient implements DiveraClient {
     @Override
     public VehicleStatusGroupResponse pullVehicleStatus(DiveraConfig diveraConfig) {
         List<VehicleStatus> mockStatuses = List.of(
-                new VehicleStatus(4716L, alarmActive.get() ? 3 : 2), // ELW
-                new VehicleStatus(4714L, alarmActive.get() ? 4 : 1), // HLF
-                new VehicleStatus(4715L, 1), // TLF
-                new VehicleStatus(7185L, 1), // RW
-                new VehicleStatus(7184L, 1), // SW
-                new VehicleStatus(44882L, 1), // MTW
-                new VehicleStatus(45764L, 1), // RTB
-                new VehicleStatus(55884L, 1), // OBM
-                new VehicleStatus(55885L, 1), // OBMV
-                new VehicleStatus(55886L, 1), // ZF
-                new VehicleStatus(86298L, 1) // ZFV
+                new VehicleStatus(4716L, alarmActive.get() ? 4 : 2), // ELW
+                new VehicleStatus(4714L, alarmActive.get() ? 3 : 2), // HLF
+                new VehicleStatus(4715L, alarmActive.get() ? 3 : 2), // TLF
+                new VehicleStatus(7185L, 2), // RW
+                new VehicleStatus(7184L, 2), // SW
+                new VehicleStatus(44882L, 2), // MTW
+                new VehicleStatus(45764L, 2), // RTB
+                new VehicleStatus(55884L, alarmActive.get() ? 4 : 2), // OBM
+                new VehicleStatus(55885L, alarmActive.get() ? 4 : 2), // OBMV
+                new VehicleStatus(55886L, alarmActive.get() ? 4 : 2), // ZF
+                new VehicleStatus(86298L, alarmActive.get() ? 4 : 2) // ZFV
         );
 
         return new VehicleStatusGroupResponse(true, mockStatuses);

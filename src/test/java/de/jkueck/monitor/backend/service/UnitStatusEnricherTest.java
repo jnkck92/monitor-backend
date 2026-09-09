@@ -31,7 +31,7 @@ class UnitStatusEnricherTest {
         assertThat(result.id()).isEqualTo("v1");
         assertThat(result.name()).isEqualTo("LF20");
         assertThat(result.callSign()).isEqualTo("FL-FW 11");
-        assertThat(result.alerted()).isTrue();
+        assertThat(result.alerted()).isFalse();
         assertThat(result.radioStatus().label()).isEqualTo("Status 2");
         assertThat(result.radioStatus().color()).isEqualTo("#00ff00");
     }
@@ -57,7 +57,7 @@ class UnitStatusEnricherTest {
 
         UnitWebResponse result = enricher.enrich(unit, live, config);
 
-        assertThat(result.alerted()).isTrue();
+        assertThat(result.alerted()).isFalse();
         assertThat(result.radioStatus().label()).isEqualTo("Unbekannter Status");
         assertThat(result.radioStatus().color()).isEqualTo("#cccccc");
     }

@@ -1,8 +1,14 @@
 package de.jkueck.monitor.backend.dto.response;
 
+import java.time.Instant;
+
 public record AlarmWebResponse(
 
         String title,
+
+        String keyword,
+
+        String description,
 
         String address,
 
@@ -10,7 +16,9 @@ public record AlarmWebResponse(
 
         String color,
 
-        String hint
+        String hint,
+
+        Instant timestamp
 
 ) {
 }

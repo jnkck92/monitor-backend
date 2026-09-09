@@ -25,12 +25,20 @@ import java.util.stream.Collectors;
 public class MonitorPollingService {
 
     private final DiveraClient client;
+
     private final ConfigurationService configService;
+
     private final MonitorStateBuilder stateBuilder;
+
     private final DiveraResponseLogger responseLogger;
+
     private final Timer pollTimer;
+
     private final Counter pollErrorCounter;
+
     private final Counter stateChangeCounter;
+
+    private final OwnVehicleMarker ownVehicleMarker;
 
     private final Map<String, AtomicReference<MonitorWebResponse>> stateByTenant = new ConcurrentHashMap<>();
 
@@ -38,7 +46,8 @@ public class MonitorPollingService {
                                   ConfigurationService configService,
                                   MonitorStateBuilder stateBuilder,
                                   DiveraResponseLogger responseLogger,
-                                  MeterRegistry meterRegistry) {
+                                  MeterRegistry meterRegistry,
+                                    OwnVehicleMarker ownVehicleMarker) {
         this.client = client;
         this.configService = configService;
         this.stateBuilder = stateBuilder;
@@ -52,6 +61,7 @@ public class MonitorPollingService {
         this.stateChangeCounter = Counter.builder("monitor.state.changes")
                 .description("Number of state transitions (e.g. STANDBY → ALARM)")
                 .register(meterRegistry);
+        this.ownVehicleMarker = ownVehicleMarker;
     }
 
     @PostConstruct
@@ -65,6 +75,10 @@ public class MonitorPollingService {
             throw new IllegalStateException("No monitor state available yet for tenant: " + tenant);
         }
         return ref.get();
+    }
+
+    public MonitorWebResponse getCurrentState(String tenant, String ownVehicleId) {
+        return ownVehicleMarker.mark(getCurrentState(tenant), ownVehicleId);
     }
 
     public Map<String, MonitorWebResponse> getAllStates() {

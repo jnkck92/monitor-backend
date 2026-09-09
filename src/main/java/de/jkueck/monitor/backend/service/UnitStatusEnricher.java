@@ -28,12 +28,12 @@ public class UnitStatusEnricher {
     private UnitWebResponse withLiveStatus(Unit unit, VehicleStatus live, Configuration configuration) {
         Status status = configuration.statuses()
                 .getOrDefault(String.valueOf(live.fmsstatus()), DEFAULT_STATUS);
-        return new UnitWebResponse(unit.id(), unit.shortName(), unit.ric(), true,
-                new RadioStatusWebResponse(status.label(), status.color()));
+        return new UnitWebResponse(unit.id(), unit.shortName(), unit.ric(), false,
+                new RadioStatusWebResponse(status.label(), status.color()), false);
     }
 
     private UnitWebResponse withoutLiveStatus(Unit unit) {
-        return new UnitWebResponse(unit.id(), unit.shortName(), unit.ric(), false, NO_CONNECTION_STATUS);
+        return new UnitWebResponse(unit.id(), unit.shortName(), unit.ric(), false, NO_CONNECTION_STATUS, false);
     }
 
 }

@@ -10,7 +10,9 @@ public record UnitWebResponse(
 
         boolean alerted,
 
-        RadioStatusWebResponse radioStatus
+        RadioStatusWebResponse radioStatus,
+
+        boolean ownVehicle
 
 ) {
 }

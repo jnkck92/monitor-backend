@@ -39,7 +39,7 @@ public class VehicleOrderBuilder {
     }
 
     private static UnitWebResponse withAlerted(UnitWebResponse v, boolean alerted) {
-        return new UnitWebResponse(v.id(), v.name(), v.callSign(), alerted, v.radioStatus());
+        return new UnitWebResponse(v.id(), v.name(), v.callSign(), alerted, v.radioStatus(), v.ownVehicle());
     }
 
     private static List<String> resolveRemainingOrder(Rule rule, Configuration configuration) {

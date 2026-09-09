@@ -2,6 +2,7 @@ package de.jkueck.monitor.backend.service;
 
 import de.jkueck.monitor.backend.dto.configuration.*;
 import de.jkueck.monitor.backend.dto.response.MonitorWebResponse;
+import de.jkueck.monitor.backend.dto.response.UnitWebResponse;
 import de.jkueck.monitor.backend.dto.response.divera.AlarmResponse;
 import de.jkueck.monitor.backend.dto.response.divera.DiveraResponse;
 import de.jkueck.monitor.backend.dto.response.divera.VehicleStatus;
@@ -68,6 +69,7 @@ class MonitorStateBuilderTest {
         assertThat(result.alarm().label()).isEqualTo("Zimmerbrand");
         assertThat(result.alarm().color()).isEqualTo("#ff0000");
         assertThat(result.alarm().address()).isEqualTo("Musterstr. 1");
+        assertThat(result.persons()).allMatch(UnitWebResponse::alerted);
     }
 
     @Test
@@ -152,5 +154,91 @@ class MonitorStateBuilderTest {
 
         assertThat(result.alarm()).isNull();
     }
+
+    @Test
+    void standbyStateNeverMarksVehiclesAsAlertedEvenWithLiveStatus() {
+        // Konfiguration mit einem Fahrzeug, das einen Live-Status hat
+        Unit vehicle = new Unit("v1", "LF20", "LF20", "vehicle", "FL-FW 11", 100L);
+        Configuration config = new Configuration("TestFW", null, List.of(), List.of(vehicle),
+                List.of("v1"), null, Map.of("2", new Status("Status 2", "#00ff00")), List.of());
+
+        List<VehicleStatus> liveStatuses = List.of(new VehicleStatus(100L, 2));
+        DiveraResponse noActiveAlarm = new DiveraResponse(true, new DiveraResponse.Data(Map.of()));
+
+        MonitorWebResponse result = stateBuilder.build(noActiveAlarm, liveStatuses, config);
+
+        assertThat(result.mode()).isEqualTo("STANDBY");
+        assertThat(result.vehicles()).allMatch(v -> !v.alerted());
+    }
+
+    @Test
+    void mapsDiveraDateToAlarmTimestamp() {
+        long epochSeconds = 1725192000L; // 2024-09-01T12:00:00Z
+
+        Unit vehicle = new Unit("v1", "LF20", "LF20", "vehicle", "FL-FW 11", 100L);
+        Configuration config = new Configuration("TestFW", null, List.of(), List.of(vehicle),
+                List.of("v1"), null, Map.of("2", new Status("Status 2", "#00ff00")), List.of());
+
+        AlarmResponse alarm = new AlarmResponse(1L, "F 01 - Kleinbrand", null, "Musterstr. 1", epochSeconds, false, false);
+        DiveraResponse response = new DiveraResponse(true,
+                new DiveraResponse.Data(Map.of("1", alarm)));
+
+        MonitorWebResponse result = stateBuilder.build(response, List.of(), config);
+
+        assertThat(result.alarm().timestamp()).isEqualTo(Instant.ofEpochSecond(epochSeconds));
+    }
+
+    @Test
+    void setsNullTimestampWhenDiveraDateIsNull() {
+
+        Unit vehicle = new Unit("v1", "LF20", "LF20", "vehicle", "FL-FW 11", 100L);
+        Configuration config = new Configuration("TestFW", null, List.of(), List.of(vehicle),
+                List.of("v1"), null, Map.of("2", new Status("Status 2", "#00ff00")), List.of());
+
+        AlarmResponse alarm = new AlarmResponse(1L, "F 01 - Kleinbrand", null, "Musterstr. 1", null, false, false);
+        DiveraResponse response = new DiveraResponse(true,
+                new DiveraResponse.Data(Map.of("1", alarm)));
+
+        MonitorWebResponse result = stateBuilder.build(response, List.of(), config);
+
+        assertThat(result.alarm().timestamp()).isNull();
+    }
+
+    @Test
+    void allPersonsAreMarkedAlertedInAlarmMode() {
+        List<VehicleStatus> live = List.of(new VehicleStatus(100L, 2));
+
+        MonitorWebResponse result = stateBuilder.build(activeAlarmResponse("B2 Zimmerbrand"), live, defaultConfig());
+
+        assertThat(result.mode()).isEqualTo("ALARM");
+        assertThat(result.persons()).isNotEmpty();
+        assertThat(result.persons()).allMatch(UnitWebResponse::alerted);
+    }
+
+    @Test
+    void personsAreNotAlertedInStandbyMode() {
+        List<VehicleStatus> live = List.of(new VehicleStatus(100L, 2));
+
+        MonitorWebResponse result = stateBuilder.build(noAlarmResponse(), live, defaultConfig());
+
+        assertThat(result.mode()).isEqualTo("STANDBY");
+        assertThat(result.persons()).isNotEmpty();
+        assertThat(result.persons()).allMatch(p -> !p.alerted());
+    }
+
+    @Test
+    void personAttributesArePreservedWhenMarkingAlerted() {
+        List<VehicleStatus> live = List.of();
+
+        MonitorWebResponse result = stateBuilder.build(activeAlarmResponse("B2 Zimmerbrand"), live, defaultConfig());
+
+        UnitWebResponse person = result.persons().get(0);
+        assertThat(person.id()).isEqualTo("p1");
+        assertThat(person.name()).isEqualTo("Max");
+        assertThat(person.callSign()).isEqualTo("P1");
+        assertThat(person.alerted()).isTrue();
+        assertThat(person.radioStatus()).isNotNull();
+    }
+
 
 }
