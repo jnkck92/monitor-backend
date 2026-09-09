@@ -34,7 +34,10 @@ public class MonitorController {
     @ApiResponse(responseCode = "200", description = "Current monitor state",
             content = @Content(schema = @Schema(implementation = MonitorWebResponse.class)))
     @GetMapping("/status")
-    public MonitorWebResponse getStatus(@RequestHeader("X-Tenant") String tenant) {
-        return pollingService.getCurrentState(tenant);
+    public MonitorWebResponse getStatus(
+            @RequestHeader("X-Tenant") String tenant,
+            @RequestHeader(value = "X-Vehicle", required = false) String vehicleId
+    ) {
+        return pollingService.getCurrentState(tenant, vehicleId);
     }
 }

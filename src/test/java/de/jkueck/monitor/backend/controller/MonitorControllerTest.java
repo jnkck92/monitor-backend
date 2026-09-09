@@ -36,7 +36,7 @@ class MonitorControllerTest {
         MonitorWebResponse state = new MonitorWebResponse("TestFW", "STANDBY",
                 List.of(), List.of(), null, Instant.parse("2026-09-01T12:00:00Z"), null);
 
-        when(pollingService.getCurrentState(TENANT)).thenReturn(state);
+        when(pollingService.getCurrentState(TENANT, null)).thenReturn(state);
 
         mockMvc.perform(get("/api/v1/monitor/status").header("X-Tenant", TENANT))
                 .andExpect(status().isOk())
@@ -57,7 +57,7 @@ class MonitorControllerTest {
         MonitorWebResponse state = new MonitorWebResponse("TestFW", "ALARM",
                 List.of(), List.of(), alarm, Instant.parse("2026-09-01T12:00:00Z"), null);
 
-        when(pollingService.getCurrentState(TENANT)).thenReturn(state);
+        when(pollingService.getCurrentState(TENANT, null)).thenReturn(state);
 
         mockMvc.perform(get("/api/v1/monitor/status").header("X-Tenant", TENANT))
                 .andExpect(status().isOk())
@@ -73,14 +73,14 @@ class MonitorControllerTest {
     @DisplayName("GET /api/v1/monitor/status gibt Vehicles und Persons zurück")
     void getStatusReturnsVehiclesAndPersons() throws Exception {
         UnitWebResponse vehicle = new UnitWebResponse("v1", "LF20", "FL-FW 11", true,
-                new RadioStatusWebResponse("Status 2", "#00ff00"));
+                new RadioStatusWebResponse("Status 2", "#00ff00"), false);
         UnitWebResponse person = new UnitWebResponse("p1", "Max", "P1", false,
-                new RadioStatusWebResponse("UNBEKANNT", "#cccccc"));
+                new RadioStatusWebResponse("UNBEKANNT", "#cccccc"), false);
 
         MonitorWebResponse state = new MonitorWebResponse("TestFW", "STANDBY",
                 List.of(person), List.of(vehicle), null, Instant.parse("2026-09-01T12:00:00Z"), null);
 
-        when(pollingService.getCurrentState(TENANT)).thenReturn(state);
+        when(pollingService.getCurrentState(TENANT, null)).thenReturn(state);
 
         mockMvc.perform(get("/api/v1/monitor/status").header("X-Tenant", TENANT))
                 .andExpect(status().isOk())
@@ -88,10 +88,46 @@ class MonitorControllerTest {
                 .andExpect(jsonPath("$.vehicles[0].name").value("LF20"))
                 .andExpect(jsonPath("$.vehicles[0].callSign").value("FL-FW 11"))
                 .andExpect(jsonPath("$.vehicles[0].alerted").value(true))
+                .andExpect(jsonPath("$.vehicles[0].ownVehicle").value(false))
                 .andExpect(jsonPath("$.vehicles[0].radioStatus.label").value("Status 2"))
                 .andExpect(jsonPath("$.vehicles[0].radioStatus.color").value("#00ff00"))
                 .andExpect(jsonPath("$.persons[0].id").value("p1"))
                 .andExpect(jsonPath("$.persons[0].alerted").value(false));
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/monitor/status mit X-Vehicle Header markiert eigenes Fahrzeug")
+    void getStatusWithVehicleHeaderMarksOwnVehicle() throws Exception {
+        UnitWebResponse vehicle = new UnitWebResponse("elw1", "ELW1", "15/11-4", false,
+                new RadioStatusWebResponse("BEREIT", "#00ff00"), true);
+
+        MonitorWebResponse state = new MonitorWebResponse("TestFW", "STANDBY",
+                List.of(), List.of(vehicle), null, Instant.parse("2026-09-01T12:00:00Z"), null);
+
+        when(pollingService.getCurrentState(TENANT, "elw1")).thenReturn(state);
+
+        mockMvc.perform(get("/api/v1/monitor/status")
+                        .header("X-Tenant", TENANT)
+                        .header("X-Vehicle", "elw1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.vehicles[0].id").value("elw1"))
+                .andExpect(jsonPath("$.vehicles[0].ownVehicle").value(true));
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/monitor/status ohne X-Vehicle Header funktioniert weiterhin (Backward-Compatibility)")
+    void getStatusWithoutVehicleHeaderStillWorks() throws Exception {
+        UnitWebResponse vehicle = new UnitWebResponse("elw1", "ELW1", "15/11-4", false,
+                new RadioStatusWebResponse("BEREIT", "#00ff00"), false);
+
+        MonitorWebResponse state = new MonitorWebResponse("TestFW", "STANDBY",
+                List.of(), List.of(vehicle), null, Instant.parse("2026-09-01T12:00:00Z"), null);
+
+        when(pollingService.getCurrentState(TENANT, null)).thenReturn(state);
+
+        mockMvc.perform(get("/api/v1/monitor/status").header("X-Tenant", TENANT))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.vehicles[0].ownVehicle").value(false));
     }
 
     @Test
@@ -100,7 +136,7 @@ class MonitorControllerTest {
         MonitorWebResponse state = new MonitorWebResponse("TestFW", "STANDBY",
                 List.of(), List.of(), null, Instant.parse("2026-09-01T12:00:00Z"), "API timeout");
 
-        when(pollingService.getCurrentState(TENANT)).thenReturn(state);
+        when(pollingService.getCurrentState(TENANT, null)).thenReturn(state);
 
         mockMvc.perform(get("/api/v1/monitor/status").header("X-Tenant", TENANT))
                 .andExpect(status().isOk())
@@ -114,7 +150,7 @@ class MonitorControllerTest {
         MonitorWebResponse state = new MonitorWebResponse("TestFW", "STANDBY",
                 List.of(), List.of(), null, Instant.now(), null);
 
-        when(pollingService.getCurrentState(TENANT)).thenReturn(state);
+        when(pollingService.getCurrentState(TENANT, null)).thenReturn(state);
 
         mockMvc.perform(get("/api/v1/monitor/status").header("X-Tenant", TENANT))
                 .andExpect(status().isOk())
@@ -128,7 +164,7 @@ class MonitorControllerTest {
         MonitorWebResponse state = new MonitorWebResponse("TestFW", "STANDBY",
                 List.of(), List.of(), null, timestamp, null);
 
-        when(pollingService.getCurrentState(TENANT)).thenReturn(state);
+        when(pollingService.getCurrentState(TENANT, null)).thenReturn(state);
 
         mockMvc.perform(get("/api/v1/monitor/status").header("X-Tenant", TENANT))
                 .andExpect(status().isOk())
@@ -150,8 +186,8 @@ class MonitorControllerTest {
         MonitorWebResponse stateB = new MonitorWebResponse("FW B", "ALARM",
                 List.of(), List.of(), null, Instant.now(), null);
 
-        when(pollingService.getCurrentState("tenant-a")).thenReturn(stateA);
-        when(pollingService.getCurrentState("tenant-b")).thenReturn(stateB);
+        when(pollingService.getCurrentState("tenant-a", null)).thenReturn(stateA);
+        when(pollingService.getCurrentState("tenant-b", null)).thenReturn(stateB);
 
         mockMvc.perform(get("/api/v1/monitor/status").header("X-Tenant", "tenant-a"))
                 .andExpect(jsonPath("$.departmentName").value("FW A"))

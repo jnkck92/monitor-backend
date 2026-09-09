@@ -18,10 +18,10 @@ class VehicleOrderBuilderTest {
     private static final RadioStatusWebResponse STATUS_2 = new RadioStatusWebResponse("Status 2", "#00ff00");
 
     private final List<UnitWebResponse> allVehicles = List.of(
-            new UnitWebResponse("v1", "LF20", "FL-FW 11", false, STATUS_2),
-            new UnitWebResponse("v2", "DLK", "FL-FW 12", false, STATUS_2),
-            new UnitWebResponse("v3", "RW", "FL-FW 13", false, STATUS_2),
-            new UnitWebResponse("v4", "MTW", "FL-FW 14", false, STATUS_2)
+            new UnitWebResponse("v1", "LF20", "FL-FW 11", false, STATUS_2, false),
+            new UnitWebResponse("v2", "DLK", "FL-FW 12", false, STATUS_2, false),
+            new UnitWebResponse("v3", "RW", "FL-FW 13", false, STATUS_2, false),
+            new UnitWebResponse("v4", "MTW", "FL-FW 14", false, STATUS_2, false)
     );
 
     private Configuration configWithDefaultOrder(List<String> defaultOrder) {
@@ -91,4 +91,20 @@ class VehicleOrderBuilderTest {
         assertThat(result).hasSize(4);
         assertThat(result).allMatch(v -> !v.alerted());
     }
+
+    @Test
+    void preservesOwnVehicleFlagWhenReordering() {
+        List<UnitWebResponse> vehiclesWithOwn = List.of(
+                new UnitWebResponse("v1", "LF20", "FL-FW 11", false, STATUS_2, true),
+                new UnitWebResponse("v2", "DLK", "FL-FW 12", false, STATUS_2, false)
+        );
+        Rule rule = new Rule("Brand", List.of("B2"), List.of("v1"), null, null, null);
+        Configuration config = configWithDefaultOrder(List.of("v1", "v2"));
+
+        List<UnitWebResponse> result = builder.buildOrderedList(vehiclesWithOwn, rule, config);
+
+        assertThat(result).filteredOn(v -> v.id().equals("v1")).first()
+                .extracting(UnitWebResponse::ownVehicle).isEqualTo(true);
+    }
+
 }

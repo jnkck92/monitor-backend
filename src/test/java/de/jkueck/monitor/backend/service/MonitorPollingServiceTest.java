@@ -4,6 +4,7 @@ import de.jkueck.monitor.backend.client.DiveraClient;
 import de.jkueck.monitor.backend.dto.configuration.Configuration;
 import de.jkueck.monitor.backend.dto.configuration.DiveraConfig;
 import de.jkueck.monitor.backend.dto.response.MonitorWebResponse;
+import de.jkueck.monitor.backend.dto.response.UnitWebResponse;
 import de.jkueck.monitor.backend.dto.response.divera.DiveraResponse;
 import de.jkueck.monitor.backend.dto.response.divera.VehicleStatus;
 import de.jkueck.monitor.backend.dto.response.divera.VehicleStatusGroupResponse;
@@ -28,6 +29,7 @@ class MonitorPollingServiceTest {
     private ConfigurationService configService;
     private MonitorStateBuilder stateBuilder;
     private DiveraResponseLogger responseLogger;
+    private OwnVehicleMarker ownVehicleMarker;
 
     private MonitorPollingService pollingService;
 
@@ -42,10 +44,11 @@ class MonitorPollingServiceTest {
         configService = mock(ConfigurationService.class);
         stateBuilder = mock(MonitorStateBuilder.class);
         responseLogger = mock(DiveraResponseLogger.class);
+        ownVehicleMarker = mock(OwnVehicleMarker.class);
 
         MeterRegistry meterRegistry = new SimpleMeterRegistry();
 
-        pollingService = new MonitorPollingService(client, configService, stateBuilder, responseLogger, meterRegistry);
+        pollingService = new MonitorPollingService(client, configService, stateBuilder, responseLogger, meterRegistry, ownVehicleMarker);
 
         diveraConfig = new DiveraConfig("test-key", "https://www.divera247.com");
         config = new Configuration("TestFW", diveraConfig, List.of(), List.of(), List.of(), null, Map.of(), List.of());
@@ -308,4 +311,63 @@ class MonitorPollingServiceTest {
     void getAllStatesReturnsEmptyMapInitially() {
         assertThat(pollingService.getAllStates()).isEmpty();
     }
+
+    @Test
+    @DisplayName("getCurrentState(tenant, vehicleId) markiert das eigene Fahrzeug")
+    void getCurrentStateWithVehicleIdMarksOwnVehicle() {
+        when(configService.getKnownTenants()).thenReturn(List.of("musterstadt"));
+
+        UnitWebResponse vehicleBeforeMarking = new UnitWebResponse("elw1", "ELW1", "15/11-4",
+                false, null, false);
+        MonitorWebResponse cachedState = new MonitorWebResponse("TestFW", "STANDBY",
+                List.of(), List.of(vehicleBeforeMarking), null, Instant.now(), null);
+
+        UnitWebResponse markedVehicle = new UnitWebResponse("elw1", "ELW1", "15/11-4",
+                false, null, true);
+        MonitorWebResponse markedState = new MonitorWebResponse("TestFW", "STANDBY",
+                List.of(), List.of(markedVehicle), null, cachedState.lastUpdate(), null);
+
+        when(configService.getConfigForTenant("musterstadt")).thenReturn(config);
+        when(client.pullAll(diveraConfig)).thenReturn(diveraResponse);
+        when(client.pullVehicleStatus(diveraConfig)).thenReturn(vehicleStatusResponse);
+        when(stateBuilder.build(diveraResponse, List.of(), config)).thenReturn(cachedState);
+        when(ownVehicleMarker.mark(cachedState, "elw1")).thenReturn(markedState);
+
+        pollingService.poll();
+
+        MonitorWebResponse result = pollingService.getCurrentState("musterstadt", "elw1");
+
+        assertThat(result).isSameAs(markedState);
+        assertThat(result.vehicles())
+                .filteredOn(v -> v.id().equals("elw1"))
+                .first()
+                .extracting(UnitWebResponse::ownVehicle)
+                .isEqualTo(true);
+
+        verify(ownVehicleMarker).mark(cachedState, "elw1");
+    }
+
+    @Test
+    @DisplayName("getCurrentState(tenant, null) ruft den Marker mit null auf und markiert nichts")
+    void getCurrentStateWithoutVehicleIdMarksNothing() {
+        when(configService.getKnownTenants()).thenReturn(List.of("musterstadt"));
+
+        UnitWebResponse vehicle = new UnitWebResponse("elw1", "ELW1", "15/11-4", false, null, false);
+        MonitorWebResponse cachedState = new MonitorWebResponse("TestFW", "STANDBY",
+                List.of(), List.of(vehicle), null, Instant.now(), null);
+
+        when(configService.getConfigForTenant("musterstadt")).thenReturn(config);
+        when(client.pullAll(diveraConfig)).thenReturn(diveraResponse);
+        when(client.pullVehicleStatus(diveraConfig)).thenReturn(vehicleStatusResponse);
+        when(stateBuilder.build(diveraResponse, List.of(), config)).thenReturn(cachedState);
+        when(ownVehicleMarker.mark(cachedState, null)).thenReturn(cachedState);
+
+        pollingService.poll();
+
+        MonitorWebResponse result = pollingService.getCurrentState("musterstadt", null);
+
+        assertThat(result.vehicles()).allMatch(v -> !v.ownVehicle());
+        verify(ownVehicleMarker).mark(cachedState, null);
+    }
+
 }

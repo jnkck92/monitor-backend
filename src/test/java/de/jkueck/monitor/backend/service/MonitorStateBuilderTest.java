@@ -153,4 +153,20 @@ class MonitorStateBuilderTest {
         assertThat(result.alarm()).isNull();
     }
 
+    @Test
+    void standbyStateNeverMarksVehiclesAsAlertedEvenWithLiveStatus() {
+        // Konfiguration mit einem Fahrzeug, das einen Live-Status hat
+        Unit vehicle = new Unit("v1", "LF20", "LF20", "vehicle", "FL-FW 11", 100L);
+        Configuration config = new Configuration("TestFW", null, List.of(), List.of(vehicle),
+                List.of("v1"), null, Map.of("2", new Status("Status 2", "#00ff00")), List.of());
+
+        List<VehicleStatus> liveStatuses = List.of(new VehicleStatus(100L, 2));
+        DiveraResponse noActiveAlarm = new DiveraResponse(true, new DiveraResponse.Data(Map.of()));
+
+        MonitorWebResponse result = stateBuilder.build(noActiveAlarm, liveStatuses, config);
+
+        assertThat(result.mode()).isEqualTo("STANDBY");
+        assertThat(result.vehicles()).allMatch(v -> !v.alerted());
+    }
+
 }
