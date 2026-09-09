@@ -47,7 +47,8 @@ public class MonitorStateBuilder {
         Rule rule = keywordMatcher.matchRule(alarm, ruleGroup).orElse(DEFAULT_RULE);
 
         List<UnitWebResponse> alarmedVehicles = vehicleOrderBuilder.buildOrderedList(vehicles, rule, configuration);
-        AlarmWebResponse alarmInfo = new AlarmWebResponse(alarm.title(), alarm.address(), rule.label(), ruleGroup.color(), rule.hint());
+        AlarmTitleParser.TitleParts titleParts = AlarmTitleParser.parse(alarm.title());
+        AlarmWebResponse alarmInfo = new AlarmWebResponse(alarm.title(), titleParts.keyword(), titleParts.description(), alarm.address(), rule.label(), ruleGroup.color(), rule.hint());
 
         return new MonitorWebResponse(configuration.departmentName(), MonitorMode.ALARM.name(),
                 persons, alarmedVehicles, alarmInfo, Instant.now(clock), null);

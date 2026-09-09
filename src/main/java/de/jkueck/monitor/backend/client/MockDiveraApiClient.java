@@ -35,11 +35,16 @@ public class MockDiveraApiClient implements DiveraClient {
         return new DiveraResponse(
                 true,
                 new DiveraResponse.Data(
-                        Map.of("123", new AlarmResponse(
-                                123L, "F012 - Heckenbrand", "Brennt Hecke",
-                                "Teststraße 1, 12345 Testort",
-                                Instant.now().getEpochSecond(), false, true
-                        ))
+                        Map.of("123",
+                                new AlarmResponse(
+                                        123L, "F 01 - Kleinbrand",
+                                        "Brennt ein Wahlplakat an einer Laterne",
+                                        "Kiepelbergstraße, 27721 Ritterhude Ritterhude",
+                                        Instant.now().getEpochSecond(),
+                                        false,
+                                        true
+                                )
+                        )
                 )
         );
     }
