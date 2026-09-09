@@ -107,7 +107,7 @@ class OwnVehicleMarkerTest {
     @DisplayName("behält alle anderen Felder des MonitorWebResponse unverändert bei")
     void keepsOtherFieldsUnchanged() {
         AlarmWebResponse alarm = new AlarmWebResponse("F 01 - Kleinbrand", "F 01", "Kleinbrand",
-                "Musterstr. 1", "Kleinbrand", "#b30000", "Hinweis");
+                "Musterstr. 1", "Kleinbrand", "#b30000", "Hinweis", Instant.parse("2026-09-01T12:00:00Z"));
         Instant timestamp = Instant.parse("2026-09-01T12:00:00Z");
         MonitorWebResponse state = new MonitorWebResponse("TestFW", "ALARM",
                 List.of(), List.of(vehicle("elw1", false)), alarm, timestamp, "err");

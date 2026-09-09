@@ -53,7 +53,7 @@ class MonitorControllerTest {
     @Test
     @DisplayName("GET /api/v1/monitor/status gibt ALARM-State mit Alarm-Details zurück")
     void getStatusReturnsAlarmState() throws Exception {
-        AlarmWebResponse alarm = new AlarmWebResponse("B2 Zimmerbrand", "B2", "Zimmerbrand", "Musterstr. 1", "Zimmerbrand", "#ff0000", "Atemschutz bereitstellen");
+        AlarmWebResponse alarm = new AlarmWebResponse("B2 Zimmerbrand", "B2", "Zimmerbrand", "Musterstr. 1", "Zimmerbrand", "#ff0000", "Atemschutz bereitstellen", Instant.parse("2024-09-01T12:00:00Z"));
         MonitorWebResponse state = new MonitorWebResponse("TestFW", "ALARM",
                 List.of(), List.of(), alarm, Instant.parse("2026-09-01T12:00:00Z"), null);
 
@@ -66,6 +66,7 @@ class MonitorControllerTest {
                 .andExpect(jsonPath("$.alarm.address").value("Musterstr. 1"))
                 .andExpect(jsonPath("$.alarm.label").value("Zimmerbrand"))
                 .andExpect(jsonPath("$.alarm.color").value("#ff0000"))
+                .andExpect(jsonPath("$.alarm.timestamp").value("2024-09-01T12:00:00Z"))
                 .andExpect(jsonPath("$.alarm.hint").value("Atemschutz bereitstellen"));
     }
 

@@ -47,11 +47,20 @@ public class MonitorStateBuilder {
         Rule rule = keywordMatcher.matchRule(alarm, ruleGroup).orElse(DEFAULT_RULE);
 
         List<UnitWebResponse> alarmedVehicles = vehicleOrderBuilder.buildOrderedList(vehicles, rule, configuration);
+        List<UnitWebResponse> alarmedPersons = markAllAlerted(persons);
         AlarmTitleParser.TitleParts titleParts = AlarmTitleParser.parse(alarm.title());
-        AlarmWebResponse alarmInfo = new AlarmWebResponse(alarm.title(), titleParts.keyword(), titleParts.description(), alarm.address(), rule.label(), ruleGroup.color(), rule.hint());
+        Instant alarmTimestamp = alarm.date() != null ? Instant.ofEpochSecond(alarm.date()) : null;
+        AlarmWebResponse alarmInfo = new AlarmWebResponse(alarm.title(), titleParts.keyword(), titleParts.description(),
+                alarm.address(), rule.label(), ruleGroup.color(), rule.hint(), alarmTimestamp);
 
         return new MonitorWebResponse(configuration.departmentName(), MonitorMode.ALARM.name(),
-                persons, alarmedVehicles, alarmInfo, Instant.now(clock), null);
+                alarmedPersons, alarmedVehicles, alarmInfo, Instant.now(clock), null);
+    }
+
+    private List<UnitWebResponse> markAllAlerted(List<UnitWebResponse> persons) {
+        return persons.stream()
+                .map(p -> new UnitWebResponse(p.id(), p.name(), p.callSign(), true, p.radioStatus(), p.ownVehicle()))
+                .toList();
     }
 
     private MonitorWebResponse standbyState(Configuration configuration,
