@@ -1,0 +1,111 @@
+name: Prepare Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release-type:
+        description: 'Art des Releases'
+        required: true
+        type: choice
+        default: patch
+        options:
+          - major
+          - minor
+          - patch
+
+permissions:
+  contents: write
+
+jobs:
+  prepare-release:
+    name: Bump Version, Tag & Merge Back
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v6.0.0
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Configure Git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Merge develop into main
+        run: |
+          git fetch origin develop
+          git merge origin/develop --no-edit
+
+      - name: Determine last released version
+        id: last_version
+        run: |
+          LAST_TAG=$(git describe --tags --abbrev=0 --match "v*" 2>/dev/null || echo "v0.0.0")
+          echo "Last tag: $LAST_TAG"
+          echo "version=${LAST_TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Compute new release version
+        id: new_version
+        run: |
+          IFS='.' read -r MAJOR MINOR PATCH <<< "${{ steps.last_version.outputs.version }}"
+
+          case "${{ inputs.release-type }}" in
+            major)
+              MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0
+              ;;
+            minor)
+              MINOR=$((MINOR + 1)); PATCH=0
+              ;;
+            patch)
+              PATCH=$((PATCH + 1))
+              ;;
+          esac
+
+          NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+          echo "New release version: $NEW_VERSION"
+          echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+          echo "major=$MAJOR" >> "$GITHUB_OUTPUT"
+          echo "minor=$MINOR" >> "$GITHUB_OUTPUT"
+          echo "patch=$PATCH" >> "$GITHUB_OUTPUT"
+
+      - name: Set release version & verify build
+        run: |
+          ./mvnw -B versions:set -DnewVersion=${{ steps.new_version.outputs.version }} -DgenerateBackupPoms=false
+          ./mvnw -B -DskipTests package
+
+      - name: Commit, tag & push release on main
+        run: |
+          git add pom.xml
+          git commit -m "chore: release version ${{ steps.new_version.outputs.version }}"
+          git tag "v${{ steps.new_version.outputs.version }}"
+          git push origin main
+          git push origin "v${{ steps.new_version.outputs.version }}"
+
+      - name: Merge main back into develop
+        run: |
+          git checkout develop
+          git pull origin develop
+          git merge main --no-edit
+
+      - name: Compute next SNAPSHOT version
+        id: next_version
+        run: |
+          NEXT_PATCH=$((${{ steps.new_version.outputs.patch }} + 1))
+          NEXT_VERSION="${{ steps.new_version.outputs.major }}.${{ steps.new_version.outputs.minor }}.$NEXT_PATCH-SNAPSHOT"
+          echo "version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Set next SNAPSHOT version on develop
+        run: ./mvnw -B versions:set -DnewVersion=${{ steps.next_version.outputs.version }} -DgenerateBackupPoms=false
+
+      - name: Commit & push develop
+        run: |
+          git add pom.xml
+          git commit -m "chore: bump version to ${{ steps.next_version.outputs.version }}"
+          git push origin develop
