@@ -1,18 +1,14 @@
 package de.jkueck.monitor.backend.controller;
 
 import de.jkueck.monitor.backend.dto.configuration.Configuration;
-import de.jkueck.monitor.backend.service.ConfigurationService;
-import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.*;
-
-import de.jkueck.monitor.backend.dto.configuration.Configuration;
-import de.jkueck.monitor.backend.service.ConfigurationService;
+import de.jkueck.monitor.backend.service.ConfigurationProvider;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequiredArgsConstructor
@@ -20,7 +16,7 @@ import lombok.RequiredArgsConstructor;
 @Tag(name = "Configuration", description = "Endpoints for managing the monitor configuration")
 public class ConfigurationController {
 
-    private final ConfigurationService configService;
+    private final ConfigurationProvider configService;
 
     @Operation(
             summary = "Get current configuration",

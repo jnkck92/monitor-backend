@@ -9,6 +9,9 @@ import de.jkueck.monitor.backend.dto.response.divera.VehicleStatusGroupResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.client.ResourceAccessException;
+import org.springframework.web.client.RestClient;
+
+import java.time.Duration;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.*;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -17,10 +20,14 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @WireMockTest
 class RealDiveraApiClientTest {
 
-    // Defaults ohne accessKey – der kommt jetzt pro Tenant aus der DiveraConfig
     private RealDiveraApiClient createClient() {
-        DiveraProperties defaults = new DiveraProperties(null, 10000L);
-        return new RealDiveraApiClient(defaults);
+        return createClient(Duration.ofSeconds(5), Duration.ofSeconds(10));
+    }
+
+    private RealDiveraApiClient createClient(Duration connectTimeout, Duration readTimeout) {
+        DiveraProperties defaults = new DiveraProperties(null, 10000L, connectTimeout, readTimeout);
+        TenantRestClientProvider provider = new TenantRestClientProvider(RestClient.builder(), defaults);
+        return new RealDiveraApiClient(provider);
     }
 
     private DiveraConfig credentials(String baseUrl) {
@@ -179,4 +186,34 @@ class RealDiveraApiClientTest {
 
         assertThatThrownBy(() -> client.pullAll(cfg)).isInstanceOf(Exception.class);
     }
+
+    @Test
+    @DisplayName("pullAll() respektiert konfigurierten (kürzeren) readTimeout")
+    void pullAllRespectsConfiguredReadTimeout(WireMockRuntimeInfo wm) {
+        stubFor(get(urlPathEqualTo("/v2/alarms"))
+                .willReturn(ok().withFixedDelay(2000))); // 2s Delay
+
+        RealDiveraApiClient client = createClient(Duration.ofSeconds(5), Duration.ofMillis(500));
+        DiveraConfig cfg = credentials(wm.getHttpBaseUrl());
+
+        assertThatThrownBy(() -> client.pullAll(cfg))
+                .isInstanceOf(ResourceAccessException.class);
+    }
+
+    @Test
+    @DisplayName("pullAll() funktioniert mit großzügigem readTimeout trotz Verzögerung")
+    void pullAllSucceedsWithGenerousReadTimeout(WireMockRuntimeInfo wm) {
+        stubFor(get(urlPathEqualTo("/v2/alarms"))
+                .willReturn(okJson("""
+                        {"success": true, "data": {"items": {}}}
+                        """).withFixedDelay(1000))); // 1s Delay
+
+        RealDiveraApiClient client = createClient(Duration.ofSeconds(5), Duration.ofSeconds(5)); // ← readTimeout 5s statt 500ms
+        DiveraConfig cfg = credentials(wm.getHttpBaseUrl());
+
+        DiveraResponse response = client.pullAll(cfg);
+
+        assertThat(response.success()).isTrue();
+    }
+
 }

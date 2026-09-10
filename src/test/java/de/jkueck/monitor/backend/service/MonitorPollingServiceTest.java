@@ -8,11 +8,13 @@ import de.jkueck.monitor.backend.dto.response.UnitWebResponse;
 import de.jkueck.monitor.backend.dto.response.divera.DiveraResponse;
 import de.jkueck.monitor.backend.dto.response.divera.VehicleStatus;
 import de.jkueck.monitor.backend.dto.response.divera.VehicleStatusGroupResponse;
+import de.jkueck.monitor.backend.exception.ConfigurationLoadException;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.web.client.RestClientException;
 
 import java.time.Instant;
 import java.util.List;
@@ -26,10 +28,11 @@ import static org.mockito.Mockito.*;
 class MonitorPollingServiceTest {
 
     private DiveraClient client;
-    private ConfigurationService configService;
+    private ConfigurationProvider configService;
     private MonitorStateBuilder stateBuilder;
     private DiveraResponseLogger responseLogger;
     private OwnVehicleMarker ownVehicleMarker;
+    private TenantStateStore tenantStateStore;
 
     private MonitorPollingService pollingService;
 
@@ -41,14 +44,15 @@ class MonitorPollingServiceTest {
     @BeforeEach
     void setUp() {
         client = mock(DiveraClient.class);
-        configService = mock(ConfigurationService.class);
+        configService = mock(ConfigurationProvider.class);
         stateBuilder = mock(MonitorStateBuilder.class);
         responseLogger = mock(DiveraResponseLogger.class);
         ownVehicleMarker = mock(OwnVehicleMarker.class);
+        tenantStateStore = new TenantStateStore();
 
         MeterRegistry meterRegistry = new SimpleMeterRegistry();
 
-        pollingService = new MonitorPollingService(client, configService, stateBuilder, responseLogger, meterRegistry, ownVehicleMarker);
+        pollingService = new MonitorPollingService(client, configService, stateBuilder, responseLogger, meterRegistry, ownVehicleMarker, tenantStateStore);
 
         diveraConfig = new DiveraConfig("test-key", "https://www.divera247.com");
         config = new Configuration("TestFW", diveraConfig, List.of(), List.of(), List.of(), null, Map.of(), List.of());
@@ -149,7 +153,7 @@ class MonitorPollingServiceTest {
     void pollSetsErrorOnConfigException() {
         when(configService.getKnownTenants()).thenReturn(List.of("musterstadt"));
         when(configService.getConfigForTenant("musterstadt"))
-                .thenThrow(new RuntimeException("Config nicht erreichbar"));
+                .thenThrow(new ConfigurationLoadException("Config nicht erreichbar", null));
 
         pollingService.poll();
 
@@ -174,7 +178,8 @@ class MonitorPollingServiceTest {
 
         reset(configService);
         when(configService.getKnownTenants()).thenReturn(List.of("musterstadt"));
-        when(configService.getConfigForTenant("musterstadt")).thenThrow(new RuntimeException("Fehler"));
+        when(configService.getConfigForTenant("musterstadt"))
+                .thenThrow(new ConfigurationLoadException("Fehler", null));
 
         pollingService.poll();
 
@@ -205,7 +210,7 @@ class MonitorPollingServiceTest {
     void pollHandlesPullAllException() {
         when(configService.getKnownTenants()).thenReturn(List.of("musterstadt"));
         when(configService.getConfigForTenant("musterstadt")).thenReturn(config);
-        when(client.pullAll(diveraConfig)).thenThrow(new RuntimeException("API timeout"));
+        when(client.pullAll(diveraConfig)).thenThrow(new RestClientException("API timeout"));
 
         pollingService.poll();
 
@@ -219,7 +224,7 @@ class MonitorPollingServiceTest {
         when(configService.getKnownTenants()).thenReturn(List.of("musterstadt"));
         when(configService.getConfigForTenant("musterstadt")).thenReturn(config);
         when(client.pullAll(diveraConfig)).thenReturn(diveraResponse);
-        when(client.pullVehicleStatus(diveraConfig)).thenThrow(new RuntimeException("Vehicle API down"));
+        when(client.pullVehicleStatus(diveraConfig)).thenThrow(new RestClientException("Vehicle API down"));
 
         pollingService.poll();
 
@@ -366,8 +371,47 @@ class MonitorPollingServiceTest {
 
         MonitorWebResponse result = pollingService.getCurrentState("musterstadt", null);
 
-        assertThat(result.vehicles()).allMatch(v -> !v.ownVehicle());
+        assertThat(result.vehicles()).isNotEmpty().allMatch(v -> !v.ownVehicle());
         verify(ownVehicleMarker).mark(cachedState, null);
+    }
+
+    @Test
+    @DisplayName("poll() loggt unerwartete Fehler kritisch, ohne den Tenant-State fälschlich zu setzen")
+    void pollDoesNotCorruptStateOnUnexpectedBug() {
+        when(configService.getKnownTenants()).thenReturn(List.of("musterstadt"));
+        when(configService.getConfigForTenant("musterstadt")).thenReturn(config);
+        when(client.pullAll(diveraConfig)).thenReturn(diveraResponse);
+        when(client.pullVehicleStatus(diveraConfig)).thenReturn(vehicleStatusResponse);
+        when(stateBuilder.build(any(), any(), any()))
+                .thenThrow(new NullPointerException("Unerwarteter Bug"));
+
+        pollingService.poll();
+
+        // Kein State wurde jemals gesetzt, da der Fehler nicht als "bekannter" Poll-Fehler behandelt wird
+        assertThatThrownBy(() -> pollingService.getCurrentState("musterstadt"))
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    @DisplayName("poll() verarbeitet andere Tenants weiter, auch wenn einer einen unerwarteten Bug wirft")
+    void pollContinuesWithOtherTenantsAfterUnexpectedBug() {
+        when(configService.getKnownTenants()).thenReturn(List.of("tenant-a", "tenant-b"));
+
+        Configuration configA = new Configuration("FW A", diveraConfig, List.of(), List.of(), List.of(), null, Map.of(), List.of());
+        MonitorWebResponse stateB = new MonitorWebResponse("FW B", "STANDBY", List.of(), List.of(), null, Instant.now(), null);
+
+        when(configService.getConfigForTenant("tenant-a")).thenReturn(configA);
+        when(configService.getConfigForTenant("tenant-b")).thenReturn(config);
+        when(client.pullAll(diveraConfig)).thenReturn(diveraResponse);
+        when(client.pullVehicleStatus(diveraConfig)).thenReturn(vehicleStatusResponse);
+        when(stateBuilder.build(diveraResponse, List.of(), configA)).thenThrow(new NullPointerException("Bug in tenant-a"));
+        when(stateBuilder.build(diveraResponse, List.of(), config)).thenReturn(stateB);
+
+        pollingService.poll();
+
+        assertThatThrownBy(() -> pollingService.getCurrentState("tenant-a"))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(pollingService.getCurrentState("tenant-b")).isEqualTo(stateB);
     }
 
 }

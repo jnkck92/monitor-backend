@@ -2,6 +2,8 @@ package de.jkueck.monitor.backend.service;
 
 import de.jkueck.monitor.backend.config.ConfigurationProperties;
 import de.jkueck.monitor.backend.dto.configuration.Configuration;
+import de.jkueck.monitor.backend.exception.ConfigurationLoadException;
+import de.jkueck.monitor.backend.exception.UnknownTenantException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -85,8 +87,8 @@ class ConfigurationServiceTest {
         ConfigurationService service = createService(List.of());
 
         assertThatThrownBy(() -> service.getConfigForTenant("unbekannt"))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("does not exist");
+                .isInstanceOf(UnknownTenantException.class)
+                .hasMessageContaining("Unknown tenant");
     }
 
     @Test
@@ -96,7 +98,7 @@ class ConfigurationServiceTest {
         ConfigurationService service = createService(List.of("kaputt"));
 
         assertThatThrownBy(() -> service.getConfigForTenant("kaputt"))
-                .isInstanceOf(IllegalStateException.class);
+                .isInstanceOf(ConfigurationLoadException.class);
     }
 
     @Test
@@ -154,7 +156,7 @@ class ConfigurationServiceTest {
         ConfigurationService service = createService(List.of("tenant-a", "tenant-b"));
 
         assertThatThrownBy(service::reloadAll)
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOf(UnknownTenantException.class)
                 .hasMessageContaining("tenant-b");
     }
 
@@ -248,4 +250,52 @@ class ConfigurationServiceTest {
 
         assertThat(service.getKnownTenants()).isEmpty();
     }
+
+    @Test
+    @DisplayName("getConfigForTenant() lehnt Path-Traversal-Versuche ab")
+    void rejectsPathTraversalAttempt() {
+        ConfigurationService service = createService(List.of("musterstadt"));
+
+        assertThatThrownBy(() -> service.getConfigForTenant("../../etc/passwd")).isInstanceOf(UnknownTenantException.class);
+    }
+
+    @Test
+    @DisplayName("getConfigForTenant() liefert aussagekräftige Fehlermeldung bei falschem Feldtyp")
+    void loadConfigThrowsWithDescriptiveMessageOnTypeMismatch() throws IOException {
+        String yamlWithWrongType = """
+            departmentName: TestFW
+            divera:
+              accessKey: "test-key"
+            persons: []
+            vehicles: "das sollte eine Liste sein, nicht ein String"
+            defaultOrder: []
+            statuses: {}
+            ruleGroups: []
+            """;
+        writeConfigForTenant("kaputt-typ", yamlWithWrongType);
+        ConfigurationService service = createService(List.of("kaputt-typ"));
+
+        assertThatThrownBy(() -> service.getConfigForTenant("kaputt-typ"))
+                .isInstanceOf(ConfigurationLoadException.class)
+                .hasMessageContaining("kaputt-typ");
+    }
+
+    @Test
+    @DisplayName("getConfigForTenant() liefert aussagekräftige Fehlermeldung bei nicht lesbarer Datei")
+    void loadConfigThrowsWithDescriptiveMessageOnUnreadableFile() throws IOException {
+        writeConfigForTenant("nicht-lesbar", VALID_CONFIG);
+        Path configFile = tempDir.resolve("nicht-lesbar").resolve("instance-config.yaml");
+        // Datei für den aktuellen Benutzer unlesbar machen (funktioniert nicht unter allen OS/CI-Umgebungen zuverlässig,
+        // ggf. per @DisabledOnOs(WINDOWS) einschränken oder mit einem gemockten ObjectMapper simulieren)
+        configFile.toFile().setReadable(false);
+        ConfigurationService service = createService(List.of("nicht-lesbar"));
+
+        try {
+            assertThatThrownBy(() -> service.getConfigForTenant("nicht-lesbar"))
+                    .isInstanceOf(ConfigurationLoadException.class);
+        } finally {
+            configFile.toFile().setReadable(true); // Aufräumen für nachfolgende Tests/CI
+        }
+    }
+
 }

@@ -6,6 +6,9 @@ import de.jkueck.monitor.backend.dto.configuration.DiveraConfig;
 import de.jkueck.monitor.backend.dto.response.MonitorWebResponse;
 import de.jkueck.monitor.backend.dto.response.divera.DiveraResponse;
 import de.jkueck.monitor.backend.dto.response.divera.VehicleStatusGroupResponse;
+import de.jkueck.monitor.backend.exception.ConfigurationLoadException;
+import de.jkueck.monitor.backend.exception.MissingApiCredentialsException;
+import de.jkueck.monitor.backend.exception.UnknownTenantException;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
@@ -13,6 +16,7 @@ import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClientException;
 
 import java.util.List;
 import java.util.Map;
@@ -26,7 +30,7 @@ public class MonitorPollingService {
 
     private final DiveraClient client;
 
-    private final ConfigurationService configService;
+    private final ConfigurationProvider configService;
 
     private final MonitorStateBuilder stateBuilder;
 
@@ -40,14 +44,15 @@ public class MonitorPollingService {
 
     private final OwnVehicleMarker ownVehicleMarker;
 
-    private final Map<String, AtomicReference<MonitorWebResponse>> stateByTenant = new ConcurrentHashMap<>();
+    private final TenantStateStore stateStore;
 
     public MonitorPollingService(DiveraClient client,
-                                  ConfigurationService configService,
-                                  MonitorStateBuilder stateBuilder,
-                                  DiveraResponseLogger responseLogger,
-                                  MeterRegistry meterRegistry,
-                                    OwnVehicleMarker ownVehicleMarker) {
+                                 ConfigurationProvider configService,
+                                 MonitorStateBuilder stateBuilder,
+                                 DiveraResponseLogger responseLogger,
+                                 MeterRegistry meterRegistry,
+                                 OwnVehicleMarker ownVehicleMarker,
+                                 TenantStateStore stateStore) {
         this.client = client;
         this.configService = configService;
         this.stateBuilder = stateBuilder;
@@ -62,6 +67,7 @@ public class MonitorPollingService {
                 .description("Number of state transitions (e.g. STANDBY → ALARM)")
                 .register(meterRegistry);
         this.ownVehicleMarker = ownVehicleMarker;
+        this.stateStore = stateStore;
     }
 
     @PostConstruct
@@ -70,11 +76,7 @@ public class MonitorPollingService {
     }
 
     public MonitorWebResponse getCurrentState(String tenant) {
-        AtomicReference<MonitorWebResponse> ref = stateByTenant.get(tenant);
-        if (ref == null) {
-            throw new IllegalStateException("No monitor state available yet for tenant: " + tenant);
-        }
-        return ref.get();
+        return stateStore.get(tenant);
     }
 
     public MonitorWebResponse getCurrentState(String tenant, String ownVehicleId) {
@@ -82,14 +84,18 @@ public class MonitorPollingService {
     }
 
     public Map<String, MonitorWebResponse> getAllStates() {
-        return stateByTenant.entrySet().stream()
-                .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().get()));
+        return stateStore.getAll();
     }
 
     @Scheduled(fixedRateString = "${divera.poll-interval-ms}")
     public void poll() {
         for (String tenant : configService.getKnownTenants()) {
-            pollTenant(tenant);
+            try {
+                pollTenant(tenant);
+            } catch (RuntimeException e) {
+                pollErrorCounter.increment();
+                log.error("[{}] Unerwarteter Fehler beim Poll - vermutlich ein Bug, bitte prüfen: {}", tenant, e.getMessage(), e);
+            }
         }
     }
 
@@ -98,10 +104,7 @@ public class MonitorPollingService {
             try {
                 Configuration config = configService.getConfigForTenant(tenant);
                 DiveraConfig diveraConfig = config.divera();
-
-                if (diveraConfig == null || diveraConfig.accessKey() == null || diveraConfig.accessKey().isBlank()) {
-                    throw new IllegalStateException("No Divera accessKey configured for tenant: " + tenant);
-                }
+                DiveraConfigValidator.requireAccessKey(tenant, diveraConfig);
 
                 DiveraResponse alarmResponse = client.pullAll(diveraConfig);
                 VehicleStatusGroupResponse statusResponse = client.pullVehicleStatus(diveraConfig);
@@ -109,28 +112,25 @@ public class MonitorPollingService {
                 responseLogger.logIfChanged(alarmResponse);
 
                 MonitorWebResponse newState = stateBuilder.build(alarmResponse, statusResponse.data(), config);
-
-                AtomicReference<MonitorWebResponse> ref = stateByTenant.computeIfAbsent(tenant,
-                        t -> new AtomicReference<>(new MonitorWebResponse(
-                                "DEFAULT", "STANDBY", List.of(), List.of(), null, null, null)));
-
-                MonitorWebResponse oldState = ref.getAndSet(newState);
+                MonitorWebResponse oldState = stateStore.getOrInitial(tenant);
+                stateStore.put(tenant, newState);
 
                 if (!oldState.mode().equals(newState.mode())) {
                     log.info("[{}] State changed: {} → {}", tenant, oldState.mode(), newState.mode());
                     stateChangeCounter.increment();
                 }
-            } catch (Exception e) {
-                log.error("[{}] Error during poll: {}", tenant, e.getMessage(), e);
-                pollErrorCounter.increment();
-
-                AtomicReference<MonitorWebResponse> ref = stateByTenant.computeIfAbsent(tenant,
-                        t -> new AtomicReference<>(new MonitorWebResponse(
-                                "DEFAULT", "STANDBY", List.of(), List.of(), null, null, null)));
-                MonitorWebResponse old = ref.get();
-                ref.set(new MonitorWebResponse(old.departmentName(), old.mode(),
-                        old.persons(), old.vehicles(), old.alarm(), old.lastUpdate(), e.getMessage()));
+            } catch (UnknownTenantException | ConfigurationLoadException | MissingApiCredentialsException | RestClientException e) {
+                log.warn("[{}] Poll fehlgeschlagen (bekannter Fehler): {}", tenant, e.getMessage());
+                recordPollError(tenant, e.getMessage());
             }
         });
     }
+
+    private void recordPollError(String tenant, String message) {
+        pollErrorCounter.increment();
+        MonitorWebResponse old = stateStore.getOrInitial(tenant);
+        stateStore.put(tenant, new MonitorWebResponse(old.departmentName(), old.mode(),
+                old.persons(), old.vehicles(), old.alarm(), old.lastUpdate(), message));
+    }
+
 }

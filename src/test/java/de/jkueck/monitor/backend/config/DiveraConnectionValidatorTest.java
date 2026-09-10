@@ -4,6 +4,8 @@ import de.jkueck.monitor.backend.client.DiveraClient;
 import de.jkueck.monitor.backend.dto.configuration.Configuration;
 import de.jkueck.monitor.backend.dto.configuration.DiveraConfig;
 import de.jkueck.monitor.backend.dto.response.divera.DiveraResponse;
+import de.jkueck.monitor.backend.exception.DiveraApiException;
+import de.jkueck.monitor.backend.exception.MissingApiCredentialsException;
 import de.jkueck.monitor.backend.service.ConfigurationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -59,7 +61,7 @@ class DiveraConnectionValidatorTest {
         when(client.pullAll(diveraConfig)).thenReturn(new DiveraResponse(false, new DiveraResponse.Data(Map.of())));
 
         assertThatThrownBy(() -> validator.validateConnection())
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOf(DiveraApiException.class)
                 .hasMessageContaining("musterstadt");
     }
 
@@ -72,7 +74,7 @@ class DiveraConnectionValidatorTest {
         when(configService.getConfigForTenant("musterstadt")).thenReturn(configWithoutKey);
 
         assertThatThrownBy(() -> validator.validateConnection())
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOf(MissingApiCredentialsException.class)
                 .hasMessageContaining("accessKey");
 
         verifyNoInteractions(client);
@@ -86,8 +88,8 @@ class DiveraConnectionValidatorTest {
         when(client.pullAll(diveraConfig)).thenThrow(new RuntimeException("Connection refused"));
 
         assertThatThrownBy(() -> validator.validateConnection())
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("Connection refused");
+                .isInstanceOf(DiveraApiException.class)
+                .hasMessageContaining("Divera API error");
     }
 
     @Test
