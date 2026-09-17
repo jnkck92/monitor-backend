@@ -3,6 +3,7 @@ package de.jkueck.monitor.backend.service;
 import de.jkueck.monitor.backend.dto.response.MonitorWebResponse;
 import org.springframework.stereotype.Component;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -13,6 +14,7 @@ public class TenantStateStore {
     private static final MonitorWebResponse INITIAL_STATE = new MonitorWebResponse("DEFAULT", "STANDBY", List.of(), List.of(), null, null, null);
 
     private final Map<String, MonitorWebResponse> stateByTenant = new ConcurrentHashMap<>();
+    private final Map<String, Instant> alarmStartByTenant = new ConcurrentHashMap<>();
 
     public MonitorWebResponse get(String tenant) {
         MonitorWebResponse state = stateByTenant.get(tenant);
@@ -32,6 +34,14 @@ public class TenantStateStore {
 
     public Map<String, MonitorWebResponse> getAll() {
         return Map.copyOf(stateByTenant);
+    }
+
+    public void markAlarmStart(String tenant, Instant start) {
+        alarmStartByTenant.put(tenant, start);
+    }
+
+    public Instant clearAlarmStart(String tenant) {
+        return alarmStartByTenant.remove(tenant);
     }
 
 }

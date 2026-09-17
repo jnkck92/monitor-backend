@@ -16,6 +16,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.client.RestClientException;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -52,7 +53,7 @@ class MonitorPollingServiceTest {
 
         MeterRegistry meterRegistry = new SimpleMeterRegistry();
 
-        pollingService = new MonitorPollingService(client, configService, stateBuilder, responseLogger, meterRegistry, ownVehicleMarker, tenantStateStore);
+        pollingService = new MonitorPollingService(client, configService, stateBuilder, responseLogger, meterRegistry, ownVehicleMarker, tenantStateStore, Clock.systemUTC());
 
         diveraConfig = new DiveraConfig("test-key", "https://www.divera247.com");
         config = new Configuration("TestFW", diveraConfig, List.of(), List.of(), List.of(), null, Map.of(), List.of());

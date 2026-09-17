@@ -6,6 +6,7 @@ import de.jkueck.monitor.backend.config.DiveraProperties;
 import de.jkueck.monitor.backend.dto.configuration.DiveraConfig;
 import de.jkueck.monitor.backend.dto.response.divera.DiveraResponse;
 import de.jkueck.monitor.backend.dto.response.divera.VehicleStatusGroupResponse;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.client.ResourceAccessException;
@@ -27,7 +28,7 @@ class RealDiveraApiClientTest {
     private RealDiveraApiClient createClient(Duration connectTimeout, Duration readTimeout) {
         DiveraProperties defaults = new DiveraProperties(null, 10000L, connectTimeout, readTimeout);
         TenantRestClientProvider provider = new TenantRestClientProvider(RestClient.builder(), defaults);
-        return new RealDiveraApiClient(provider);
+        return new RealDiveraApiClient(provider, new SimpleMeterRegistry());
     }
 
     private DiveraConfig credentials(String baseUrl) {

@@ -4,6 +4,7 @@ import de.jkueck.monitor.backend.config.ConfigurationProperties;
 import de.jkueck.monitor.backend.dto.configuration.Configuration;
 import de.jkueck.monitor.backend.exception.ConfigurationLoadException;
 import de.jkueck.monitor.backend.exception.UnknownTenantException;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -26,7 +27,7 @@ class ConfigurationServiceTest {
     Path tempDir;
 
     private ConfigurationService createService(List<String> tenants) {
-        return new ConfigurationService(new ConfigurationProperties(tempDir.toString(), tenants), yamlMapper);
+        return new ConfigurationService(new ConfigurationProperties(tempDir.toString(), tenants), yamlMapper, new SimpleMeterRegistry());
     }
 
     private void writeConfigForTenant(String tenant, String yaml) throws IOException {
