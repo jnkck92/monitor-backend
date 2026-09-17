@@ -32,6 +32,10 @@ management:
   metrics:
     tags:
       application: monitor-backend
+    distribution:
+      percentiles-histogram:
+        monitor.divera.api.latency: true
+        monitor.poll.duration: true
   prometheus:
     metrics:
       export:
