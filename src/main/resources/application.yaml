@@ -40,3 +40,9 @@ management:
     metrics:
       export:
         enabled: true
+
+geocoding:
+  base-url: https://nominatim.openstreetmap.org
+  user-agent: "monitor-backend/1.0 (kontakt@einsatzlog112.de)"
+  connect-timeout: 5s
+  read-timeout: 5s

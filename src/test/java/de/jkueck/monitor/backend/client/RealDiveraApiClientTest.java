@@ -5,6 +5,8 @@ import com.github.tomakehurst.wiremock.junit5.WireMockTest;
 import de.jkueck.monitor.backend.config.DiveraProperties;
 import de.jkueck.monitor.backend.dto.configuration.DiveraConfig;
 import de.jkueck.monitor.backend.dto.response.divera.DiveraResponse;
+import de.jkueck.monitor.backend.dto.response.divera.EventsResponse;
+import de.jkueck.monitor.backend.dto.response.divera.NewsListResponse;
 import de.jkueck.monitor.backend.dto.response.divera.VehicleStatusGroupResponse;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.DisplayName;
@@ -215,6 +217,68 @@ class RealDiveraApiClientTest {
         DiveraResponse response = client.pullAll(cfg);
 
         assertThat(response.success()).isTrue();
+    }
+
+    @Test
+    @DisplayName("pullEvents() gibt EventsResponse bei erfolgreicher Antwort zurück")
+    void pullEventsReturnsResponse(WireMockRuntimeInfo wm) {
+        stubFor(get(urlPathEqualTo("/v2/events"))
+                .withQueryParam("accesskey", equalTo("test-key"))
+                .willReturn(okJson("""
+                    {
+                      "success": true,
+                      "data": {
+                        "items": {
+                          "1": {
+                            "id": 1,
+                            "title": "Übung",
+                            "text": "Monatliche Übung",
+                            "address": "Feuerwehrhaus",
+                            "date": 1725192000
+                          }
+                        },
+                        "sorting": [1]
+                      }
+                    }
+                    """)));
+
+        RealDiveraApiClient client = createClient();
+        EventsResponse response = client.pullEvents(credentials(wm.getHttpBaseUrl()));
+
+        assertThat(response.success()).isTrue();
+        assertThat(response.data().items()).hasSize(1);
+        assertThat(response.data().items().get("1").title()).isEqualTo("Übung");
+    }
+
+    @Test
+    @DisplayName("pullNews() gibt NewsListResponse bei erfolgreicher Antwort zurück")
+    void pullNewsReturnsResponse(WireMockRuntimeInfo wm) {
+        stubFor(get(urlPathEqualTo("/v2/news"))
+                .withQueryParam("accesskey", equalTo("test-key"))
+                .willReturn(okJson("""
+                    {
+                      "success": true,
+                      "data": {
+                        "items": {
+                          "1": {
+                            "id": 1,
+                            "title": "Dienstanweisung",
+                            "text": "Rückwärtsfahren nur mit Einweiser",
+                            "address": "Feuerwehrhaus",
+                            "date": 1725192000
+                          }
+                        },
+                        "sorting": [1]
+                      }
+                    }
+                    """)));
+
+        RealDiveraApiClient client = createClient();
+        NewsListResponse response = client.pullNews(credentials(wm.getHttpBaseUrl()));
+
+        assertThat(response.success()).isTrue();
+        assertThat(response.data().items()).hasSize(1);
+        assertThat(response.data().items().get("1").title()).isEqualTo("Dienstanweisung");
     }
 
 }

@@ -18,7 +18,11 @@ public record AlarmWebResponse(
 
         String hint,
 
-        Instant timestamp
+        Instant timestamp,
+
+        Double lat,
+
+        Double lon
 
 ) {
 }

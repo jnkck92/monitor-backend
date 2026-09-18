@@ -1,6 +1,7 @@
 package de.jkueck.monitor.backend.service;
 
 import de.jkueck.monitor.backend.dto.configuration.*;
+import de.jkueck.monitor.backend.dto.response.Coordinates;
 import de.jkueck.monitor.backend.dto.response.MonitorWebResponse;
 import de.jkueck.monitor.backend.dto.response.UnitWebResponse;
 import de.jkueck.monitor.backend.dto.response.divera.AlarmResponse;
@@ -13,8 +14,12 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class MonitorStateBuilderTest {
 
@@ -22,7 +27,8 @@ class MonitorStateBuilderTest {
     private final VehicleOrderBuilder vehicleOrderBuilder = new VehicleOrderBuilder();
     private final UnitStatusEnricher statusEnricher = new UnitStatusEnricher();
     private final ActiveAlarmResolver activeAlarmResolver = new ActiveAlarmResolver();
-    private final MonitorStateBuilder stateBuilder = new MonitorStateBuilder(ruleResolver, vehicleOrderBuilder, statusEnricher, activeAlarmResolver, Clock.fixed(Instant.parse("2026-09-01T12:00:00Z"), ZoneId.of("UTC")));
+    private final GeocodingService geocodingService = mock(GeocodingService.class);
+    private final MonitorStateBuilder stateBuilder = new MonitorStateBuilder(ruleResolver, vehicleOrderBuilder, statusEnricher, activeAlarmResolver, geocodingService, Clock.fixed(Instant.parse("2026-09-01T12:00:00Z"), ZoneId.of("UTC")));
 
     private Configuration defaultConfig() {
         Unit vehicle = new Unit("v1", "LF20", "LF20", "vehicle", "FL-FW 11", 100L);
@@ -238,6 +244,28 @@ class MonitorStateBuilderTest {
         assertThat(person.callSign()).isEqualTo("P1");
         assertThat(person.alerted()).isTrue();
         assertThat(person.radioStatus()).isNotNull();
+    }
+
+    @Test
+    void buildReturnsCoordinatesWhenGeocodingSucceeds() {
+        when(geocodingService.geocode("Musterstr. 1")).thenReturn(Optional.of(new Coordinates(53.17, 8.98)));
+        List<VehicleStatus> live = List.of(new VehicleStatus(100L, 2));
+
+        MonitorWebResponse result = stateBuilder.build(activeAlarmResponse("B2 Zimmerbrand"), live, defaultConfig());
+
+        assertThat(result.alarm().lat()).isEqualTo(53.17);
+        assertThat(result.alarm().lon()).isEqualTo(8.98);
+    }
+
+    @Test
+    void buildReturnsNullCoordinatesWhenGeocodingFails() {
+        when(geocodingService.geocode(any())).thenReturn(Optional.empty());
+        List<VehicleStatus> live = List.of(new VehicleStatus(100L, 2));
+
+        MonitorWebResponse result = stateBuilder.build(activeAlarmResponse("B2 Zimmerbrand"), live, defaultConfig());
+
+        assertThat(result.alarm().lat()).isNull();
+        assertThat(result.alarm().lon()).isNull();
     }
 
 

@@ -5,6 +5,7 @@ import de.jkueck.monitor.backend.dto.configuration.Rule;
 import de.jkueck.monitor.backend.dto.configuration.RuleGroup;
 import de.jkueck.monitor.backend.dto.configuration.Unit;
 import de.jkueck.monitor.backend.dto.response.AlarmWebResponse;
+import de.jkueck.monitor.backend.dto.response.Coordinates;
 import de.jkueck.monitor.backend.dto.response.MonitorWebResponse;
 import de.jkueck.monitor.backend.dto.response.UnitWebResponse;
 import de.jkueck.monitor.backend.dto.response.divera.AlarmResponse;
@@ -30,6 +31,7 @@ public class MonitorStateBuilder {
     private final VehicleOrderBuilder vehicleOrderBuilder;
     private final UnitStatusEnricher statusEnricher;
     private final ActiveAlarmResolver activeAlarmResolver;
+    private final GeocodingService geocodingService;
     private final Clock clock;
 
     public MonitorWebResponse build(DiveraResponse alarmResponse, List<VehicleStatus> liveStatuses, Configuration configuration) {
@@ -50,8 +52,22 @@ public class MonitorStateBuilder {
         List<UnitWebResponse> alarmedPersons = markAllAlerted(persons);
         AlarmTitleParser.TitleParts titleParts = AlarmTitleParser.parse(alarm.title());
         Instant alarmTimestamp = alarm.date() != null ? Instant.ofEpochSecond(alarm.date()) : null;
-        AlarmWebResponse alarmInfo = new AlarmWebResponse(alarm.title(), titleParts.keyword(), titleParts.description(),
-                alarm.address(), rule.label(), ruleGroup.color(), rule.hint(), alarmTimestamp);
+
+        Coordinates coordinates = geocodingService.geocode(alarm.address()).orElse(null);
+
+        AlarmWebResponse alarmInfo = new AlarmWebResponse(
+                alarm.title(),
+                titleParts.keyword(),
+                titleParts.description(),
+                alarm.address(),
+                rule.label(),
+                ruleGroup.color(),
+                rule.hint(),
+                alarmTimestamp,
+                coordinates != null ? coordinates.lat() : null,
+                coordinates != null ? coordinates.lon() : null
+        );
+
 
         return new MonitorWebResponse(configuration.departmentName(), MonitorMode.ALARM.name(),
                 alarmedPersons, alarmedVehicles, alarmInfo, Instant.now(clock), null);

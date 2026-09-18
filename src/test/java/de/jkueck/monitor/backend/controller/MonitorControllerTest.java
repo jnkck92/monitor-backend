@@ -4,7 +4,9 @@ import de.jkueck.monitor.backend.dto.response.AlarmWebResponse;
 import de.jkueck.monitor.backend.dto.response.MonitorWebResponse;
 import de.jkueck.monitor.backend.dto.response.RadioStatusWebResponse;
 import de.jkueck.monitor.backend.dto.response.UnitWebResponse;
+import de.jkueck.monitor.backend.service.GeocodingService;
 import de.jkueck.monitor.backend.service.MonitorPollingService;
+import de.jkueck.monitor.backend.service.MonitorStateBuilder;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,9 +14,12 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneId;
 import java.util.List;
 
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -53,7 +58,7 @@ class MonitorControllerTest {
     @Test
     @DisplayName("GET /api/v1/monitor/status gibt ALARM-State mit Alarm-Details zurück")
     void getStatusReturnsAlarmState() throws Exception {
-        AlarmWebResponse alarm = new AlarmWebResponse("B2 Zimmerbrand", "B2", "Zimmerbrand", "Musterstr. 1", "Zimmerbrand", "#ff0000", "Atemschutz bereitstellen", Instant.parse("2024-09-01T12:00:00Z"));
+        AlarmWebResponse alarm = new AlarmWebResponse("B2 Zimmerbrand", "B2", "Zimmerbrand", "Musterstr. 1", "Zimmerbrand", "#ff0000", "Atemschutz bereitstellen", Instant.parse("2024-09-01T12:00:00Z"), null, null);
         MonitorWebResponse state = new MonitorWebResponse("TestFW", "ALARM",
                 List.of(), List.of(), alarm, Instant.parse("2026-09-01T12:00:00Z"), null);
 

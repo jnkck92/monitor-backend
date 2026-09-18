@@ -2,6 +2,8 @@ package de.jkueck.monitor.backend.client;
 
 import de.jkueck.monitor.backend.dto.configuration.DiveraConfig;
 import de.jkueck.monitor.backend.dto.response.divera.DiveraResponse;
+import de.jkueck.monitor.backend.dto.response.divera.EventsResponse;
+import de.jkueck.monitor.backend.dto.response.divera.NewsListResponse;
 import de.jkueck.monitor.backend.dto.response.divera.VehicleStatusGroupResponse;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
@@ -40,6 +42,29 @@ public class RealDiveraApiClient implements DiveraClient {
                         .build())
                 .retrieve()
                 .body(VehicleStatusGroupResponse.class));
+    }
+
+    @Override
+    public EventsResponse pullEvents(DiveraConfig diveraConfig) {
+        return timed("events", () -> restClients.forBaseUrl(diveraConfig.baseUrl()).get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/v2/events")
+                        .queryParam("accesskey", diveraConfig.accessKey())
+                        .build())
+                .retrieve()
+                .body(EventsResponse.class));
+    }
+
+
+    @Override
+    public NewsListResponse pullNews(DiveraConfig diveraConfig) {
+        return timed("news", () -> restClients.forBaseUrl(diveraConfig.baseUrl()).get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/v2/news")
+                        .queryParam("accesskey", diveraConfig.accessKey())
+                        .build())
+                .retrieve()
+                .body(NewsListResponse.class));
     }
 
     private <T> T timed(String endpoint, Supplier<T> call) {
