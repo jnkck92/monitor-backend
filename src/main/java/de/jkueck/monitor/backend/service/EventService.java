@@ -16,15 +16,26 @@ public class EventService {
     private static final int MAX_EVENTS = 4;
 
     public List<EventWebResponse> buildEventList(EventsResponse eventsResponse) {
-        if (eventsResponse == null || eventsResponse.data() == null || eventsResponse.data().items() == null) {
+        if(eventsResponse == null || eventsResponse.data() == null || eventsResponse.data().items() == null) {
             return List.of();
         }
 
         Map<String, EventResponse> items = eventsResponse.data().items();
+        List<Long> sorting = eventsResponse.data().sorting();
+
+        Comparator<EventResponse> comparator;
+        if (sorting != null && !sorting.isEmpty()) {
+            comparator = Comparator.comparingInt(e -> {
+                int idx = sorting.indexOf(e.id());
+                return idx < 0 ? Integer.MAX_VALUE : idx;
+            });
+        } else {
+            comparator = Comparator.comparing(EventResponse::date, Comparator.nullsLast(Comparator.reverseOrder()));
+        }
 
         return items.values().stream()
                 .filter(this::isVisible)
-                .sorted(Comparator.comparing(EventResponse::date, Comparator.nullsLast(Comparator.reverseOrder())))
+                .sorted(comparator)
                 .limit(MAX_EVENTS)
                 .map(this::toWebResponse)
                 .toList();

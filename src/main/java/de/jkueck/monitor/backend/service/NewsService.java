@@ -21,10 +21,21 @@ public class NewsService {
         }
 
         Map<String, NewsResponse> items = newsListResponse.data().items();
+        List<Long> sorting = newsListResponse.data().sorting();
+
+        Comparator<NewsResponse> comparator;
+        if (sorting != null && !sorting.isEmpty()) {
+            comparator = Comparator.comparingInt(n -> {
+                int idx = sorting.indexOf(n.id());
+                return idx < 0 ? Integer.MAX_VALUE : idx;
+            });
+        } else {
+            comparator = Comparator.comparing(NewsResponse::date, Comparator.nullsLast(Comparator.reverseOrder()));
+        }
 
         return items.values().stream()
                 .filter(this::isVisible)
-                .sorted(Comparator.comparing(NewsResponse::date, Comparator.nullsLast(Comparator.reverseOrder())))
+                .sorted(comparator)
                 .limit(MAX_NEWS)
                 .map(this::toWebResponse)
                 .toList();
