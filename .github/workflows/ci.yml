@@ -33,7 +33,7 @@ jobs:
         run: ./mvnw -B package -DskipTests
 
       - name: Upload JAR
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: app-jar
           path: target/monitor-backend-*.jar
@@ -57,7 +57,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: test-results
           path: target/surefire-reports/
@@ -65,7 +65,7 @@ jobs:
 
       - name: Upload coverage report
         if: always()
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: coverage-report
           path: target/site/jacoco/
