@@ -46,7 +46,7 @@ public class EventService {
     }
 
     private EventWebResponse toWebResponse(EventResponse event) {
-        Instant timestamp = event.date() != null ? Instant.ofEpochSecond(event.date()) : null;
+        Instant timestamp = event.start() != null ? Instant.ofEpochSecond(event.start()) : null;
         return new EventWebResponse(event.id(), event.title(), event.text(), event.address(),
                 timestamp, event.participation(), event.answerable());
     }
