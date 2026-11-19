@@ -77,6 +77,7 @@ public class MockDiveraApiClient implements DiveraClient {
                                         "MGA 13.1 Grundlagen des Zivil- und Katastrophenschutzes",
                                         "Feuerwehrhaus",
                                         Instant.now().plus(3, ChronoUnit.DAYS).getEpochSecond(),
+                                        Instant.now().plus(3, ChronoUnit.DAYS).getEpochSecond(),
                                         true, 0, null, false
                                 ),
                                 "2",
@@ -85,6 +86,7 @@ public class MockDiveraApiClient implements DiveraClient {
                                         "jährliche Unterweisung Unfallverhütungsvorschriften",
                                         "Feuerwehrhaus",
                                         Instant.now().plus(3, ChronoUnit.DAYS).getEpochSecond(),
+                                        Instant.now().plus(3, ChronoUnit.DAYS).getEpochSecond(),
                                         true, 0, null, false
                                 ),
                                 "3",
@@ -92,6 +94,7 @@ public class MockDiveraApiClient implements DiveraClient {
                                         3L, null, "Fahrzeugreservierung MTW, TLF und Sprinter",
                                         "JF-DIENST Sportwettbewerb",
                                         "OHZ",
+                                        Instant.now().plus(3, ChronoUnit.DAYS).getEpochSecond(),
                                         Instant.now().plus(3, ChronoUnit.DAYS).getEpochSecond(),
                                         true, 0, null, false
                                 )

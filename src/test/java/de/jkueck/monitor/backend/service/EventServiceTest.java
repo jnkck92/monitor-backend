@@ -31,7 +31,7 @@ class EventServiceTest {
     void buildEventListMapsFieldsCorrectly() {
         long epochSeconds = 1725192000L;
         EventResponse event = new EventResponse(1L, "ext-1", "Übung", "Beschreibung", "Musterstr. 1",
-                epochSeconds, true, 1, "bin dabei", false);
+                epochSeconds, epochSeconds, true, 1, "bin dabei", false);
         EventsResponse response = new EventsResponse(true, new EventsResponse.Data(Map.of("1", event), List.of(1L)));
 
         List<EventWebResponse> result = service.buildEventList(response);
@@ -49,7 +49,7 @@ class EventServiceTest {
 
     @Test
     void buildEventListFiltersDeletedEvents() {
-        EventResponse deleted = new EventResponse(1L, null, "Gelöscht", null, null, null, false, null, null, true);
+        EventResponse deleted = new EventResponse(1L, null, "Gelöscht", null, null, null, null, false, null, null, true);
         EventsResponse response = new EventsResponse(true, new EventsResponse.Data(Map.of("1", deleted), null));
 
         assertThat(service.buildEventList(response)).isEmpty();
@@ -57,8 +57,8 @@ class EventServiceTest {
 
     @Test
     void buildEventListRespectsSortingOrder() {
-        EventResponse first = new EventResponse(1L, null, "Erster", null, null, null, false, null, null, false);
-        EventResponse second = new EventResponse(2L, null, "Zweiter", null, null, null, false, null, null, false);
+        EventResponse first = new EventResponse(1L, null, "Erster", null, null, null, null, false, null, null, false);
+        EventResponse second = new EventResponse(2L, null, "Zweiter", null, null, null, null, false, null, null, false);
         EventsResponse response = new EventsResponse(true,
                 new EventsResponse.Data(Map.of("1", first, "2", second), List.of(2L, 1L)));
 
@@ -69,7 +69,7 @@ class EventServiceTest {
 
     @Test
     void buildEventListFallsBackToUnsortedWhenSortingIsMissing() {
-        EventResponse event = new EventResponse(1L, null, "Ohne Sortierung", null, null, null, false, null, null, false);
+        EventResponse event = new EventResponse(1L, null, "Ohne Sortierung", null, null, null, null, false, null, null, false);
         EventsResponse response = new EventsResponse(true, new EventsResponse.Data(Map.of("1", event), List.of()));
 
         assertThat(service.buildEventList(response)).hasSize(1);
@@ -77,11 +77,11 @@ class EventServiceTest {
 
     @Test
     void buildEventListReturnsNewestFourEventsSortedByDateDescending() {
-        EventResponse oldest = new EventResponse(1L, null, "Ältestes", null, null, 1000L, false, null, null, false);
-        EventResponse newest = new EventResponse(2L, null, "Neuestes", null, null, 5000L, false, null, null, false);
-        EventResponse middle = new EventResponse(3L, null, "Mittleres", null, null, 3000L, false, null, null, false);
-        EventResponse extra1 = new EventResponse(4L, null, "Extra1", null, null, 2000L, false, null, null, false);
-        EventResponse extra2 = new EventResponse(5L, null, "Extra2", null, null, 500L, false, null, null, false);
+        EventResponse oldest = new EventResponse(1L, null, "Ältestes", null, null, 1000L, 1000L, false, null, null, false);
+        EventResponse newest = new EventResponse(2L, null, "Neuestes", null, null, 5000L, 5000L, false, null, null, false);
+        EventResponse middle = new EventResponse(3L, null, "Mittleres", null, null, 3000L, 3000L, false, null, null, false);
+        EventResponse extra1 = new EventResponse(4L, null, "Extra1", null, null, 2000L, 2000L, false, null, null, false);
+        EventResponse extra2 = new EventResponse(5L, null, "Extra2", null, null, 500L, 500L, false, null, null, false);
         EventsResponse response = new EventsResponse(true,
                 new EventsResponse.Data(Map.of("1", oldest, "2", newest, "3", middle, "4", extra1, "5", extra2), null));
 
@@ -94,8 +94,8 @@ class EventServiceTest {
 
     @Test
     void buildEventListSortsEventsWithoutDateLast() {
-        EventResponse withDate = new EventResponse(1L, null, "Mit Datum", null, null, 1000L, false, null, null, false);
-        EventResponse withoutDate = new EventResponse(2L, null, "Ohne Datum", null, null, null, false, null, null, false);
+        EventResponse withDate = new EventResponse(1L, null, "Mit Datum", null, null, 1000L, 1000L, false, null, null, false);
+        EventResponse withoutDate = new EventResponse(2L, null, "Ohne Datum", null, null, null, null, false, null, null, false);
         EventsResponse response = new EventsResponse(true,
                 new EventsResponse.Data(Map.of("1", withDate, "2", withoutDate), null));
 
