@@ -18,6 +18,8 @@ public record EventResponse(
 
         Long date,
 
+        Long start,
+
         Boolean answerable,
 
         Integer participation,
